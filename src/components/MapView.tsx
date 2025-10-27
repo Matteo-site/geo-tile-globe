@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { Card } from '@/components/ui/card';
 
 // Fix per i marker di Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -25,7 +28,11 @@ const MapView = () => {
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isNavigationMode, setIsNavigationMode] = useState(false);
+  const [startPoint, setStartPoint] = useState('');
+  const [endPoint, setEndPoint] = useState('');
   const markersRef = useRef<L.Marker[]>([]);
+  const routingControlRef = useRef<L.Routing.Control | null>(null);
   const layersRef = useRef<{
     streets: L.TileLayer;
     satellite: L.TileLayer;
@@ -180,33 +187,156 @@ const MapView = () => {
     }
   };
 
+  const calculateRoute = async () => {
+    if (!startPoint.trim() || !endPoint.trim()) {
+      toast.error('Inserisci partenza e destinazione');
+      return;
+    }
+
+    try {
+      // Geocodifica partenza
+      const startResponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(startPoint)}&limit=1`
+      );
+      const startData = await startResponse.json();
+
+      // Geocodifica destinazione
+      const endResponse = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endPoint)}&limit=1`
+      );
+      const endData = await endResponse.json();
+
+      if (!startData.length || !endData.length) {
+        toast.error('Luoghi non trovati');
+        return;
+      }
+
+      const startLatLng: L.LatLng = L.latLng(parseFloat(startData[0].lat), parseFloat(startData[0].lon));
+      const endLatLng: L.LatLng = L.latLng(parseFloat(endData[0].lat), parseFloat(endData[0].lon));
+
+      // Rimuovi routing precedente
+      if (routingControlRef.current) {
+        map.current?.removeControl(routingControlRef.current);
+      }
+
+      // Crea routing control
+      routingControlRef.current = L.Routing.control({
+        waypoints: [startLatLng, endLatLng],
+        routeWhileDragging: true,
+        showAlternatives: true,
+        fitSelectedRoutes: true,
+        lineOptions: {
+          styles: [{ color: 'hsl(var(--primary))', weight: 6, opacity: 0.8 }],
+          extendToWaypoints: true,
+          missingRouteTolerance: 0
+        },
+        altLineOptions: {
+          styles: [{ color: 'hsl(var(--muted-foreground))', weight: 4, opacity: 0.5 }],
+          extendToWaypoints: true,
+          missingRouteTolerance: 0
+        },
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1'
+        })
+      }).addTo(map.current!);
+
+      toast.success('Percorso calcolato!');
+    } catch (error) {
+      console.error('Errore calcolo percorso:', error);
+      toast.error('Errore nel calcolo del percorso');
+    }
+  };
+
+  const clearRoute = () => {
+    if (routingControlRef.current) {
+      map.current?.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+    setStartPoint('');
+    setEndPoint('');
+    toast.success('Percorso rimosso');
+  };
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
       
-      {/* Search Bar */}
+      {/* Search Bar / Navigation */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[1000]">
         <div className="glass-panel rounded-xl p-3 shadow-elegant">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Cerca luoghi, indirizzi, città..."
-                className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
-              />
+          {!isNavigationMode ? (
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder="Cerca luoghi, indirizzi, città..."
+                  className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
+                />
+              </div>
+              <Button 
+                onClick={handleSearch}
+                disabled={isSearching}
+                size="icon"
+                className="shrink-0"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+              <Button 
+                onClick={() => setIsNavigationMode(true)}
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                title="Modalità navigazione"
+              >
+                <Route className="h-5 w-5" />
+              </Button>
             </div>
-            <Button 
-              onClick={handleSearch}
-              disabled={isSearching}
-              size="icon"
-              className="shrink-0"
-            >
-              <Search className="h-5 w-5" />
-            </Button>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-sm">Navigatore</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setIsNavigationMode(false);
+                    clearRoute();
+                  }}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1 space-y-2">
+                  <Input
+                    value={startPoint}
+                    onChange={(e) => setStartPoint(e.target.value)}
+                    placeholder="Partenza..."
+                    className="border-0 bg-background/50"
+                  />
+                  <Input
+                    value={endPoint}
+                    onChange={(e) => setEndPoint(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
+                    placeholder="Destinazione..."
+                    className="border-0 bg-background/50"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button onClick={calculateRoute} size="icon">
+                    <Route className="h-5 w-5" />
+                  </Button>
+                  <Button onClick={clearRoute} variant="outline" size="icon">
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
