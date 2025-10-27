@@ -1,156 +1,134 @@
 import { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Map as MapIcon, Satellite, Navigation, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface MapViewProps {
-  apiKey: string;
-}
+// Fix per i marker di Leaflet
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
-const MapView = ({ apiKey }: MapViewProps) => {
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
+
+const MapView = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
+  const map = useRef<L.Map | null>(null);
+  const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const markersRef = useRef<L.Marker[]>([]);
+  const layersRef = useRef<{
+    streets: L.TileLayer;
+    satellite: L.TileLayer;
+  } | null>(null);
 
   useEffect(() => {
-    if (!mapContainer.current || !apiKey) return;
+    if (!mapContainer.current || map.current) return;
 
-    mapboxgl.accessToken = apiKey;
-    
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: mapStyle === 'streets' 
-        ? 'mapbox://styles/mapbox/streets-v12'
-        : 'mapbox://styles/mapbox/satellite-streets-v12',
-      projection: 'globe',
-      zoom: 1.5,
-      center: [12, 45],
-      pitch: 45,
+    // Inizializza la mappa
+    map.current = L.map(mapContainer.current, {
+      center: [45, 12],
+      zoom: 6,
+      zoomControl: false,
     });
 
-    map.current.addControl(
-      new mapboxgl.NavigationControl({
-        visualizePitch: true,
-      }),
-      'top-right'
-    );
-
-    map.current.scrollZoom.enable();
-
-    map.current.on('style.load', () => {
-      map.current?.setFog({
-        color: 'rgb(220, 230, 255)',
-        'high-color': 'rgb(180, 200, 240)',
-        'horizon-blend': 0.2,
-        'space-color': 'rgb(30, 50, 100)',
-        'star-intensity': 0.5,
-      });
+    // Layer stradale (OpenStreetMap)
+    const streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
     });
 
-    const secondsPerRevolution = 240;
-    const maxSpinZoom = 5;
-    const slowSpinZoom = 3;
-    let userInteracting = false;
-    let spinEnabled = true;
-
-    function spinGlobe() {
-      if (!map.current) return;
-      
-      const zoom = map.current.getZoom();
-      if (spinEnabled && !userInteracting && zoom < maxSpinZoom) {
-        let distancePerSecond = 360 / secondsPerRevolution;
-        if (zoom > slowSpinZoom) {
-          const zoomDif = (maxSpinZoom - zoom) / (maxSpinZoom - slowSpinZoom);
-          distancePerSecond *= zoomDif;
-        }
-        const center = map.current.getCenter();
-        center.lng -= distancePerSecond;
-        map.current.easeTo({ center, duration: 1000, easing: (n) => n });
-      }
-    }
-
-    map.current.on('mousedown', () => {
-      userInteracting = true;
-    });
-    
-    map.current.on('dragstart', () => {
-      userInteracting = true;
-    });
-    
-    map.current.on('mouseup', () => {
-      userInteracting = false;
-      spinGlobe();
-    });
-    
-    map.current.on('touchend', () => {
-      userInteracting = false;
-      spinGlobe();
+    // Layer satellitare (Esri)
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© <a href="https://www.esri.com/">Esri</a>',
+      maxZoom: 19,
     });
 
-    map.current.on('moveend', () => {
-      spinGlobe();
-    });
+    layersRef.current = {
+      streets: streetsLayer,
+      satellite: satelliteLayer,
+    };
 
-    spinGlobe();
+    // Aggiungi il layer iniziale
+    streetsLayer.addTo(map.current);
+
+    // Aggiungi controllo zoom personalizzato
+    L.control.zoom({ position: 'topright' }).addTo(map.current);
 
     return () => {
-      map.current?.remove();
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
-  }, [apiKey]);
+  }, []);
 
   useEffect(() => {
-    if (!map.current) return;
-    
-    const newStyle = mapStyle === 'streets' 
-      ? 'mapbox://styles/mapbox/streets-v12'
-      : 'mapbox://styles/mapbox/satellite-streets-v12';
-    
-    map.current.setStyle(newStyle);
-  }, [mapStyle]);
+    if (!map.current || !layersRef.current) return;
+
+    // Rimuovi tutti i layer
+    map.current.eachLayer((layer) => {
+      if (layer instanceof L.TileLayer) {
+        map.current?.removeLayer(layer);
+      }
+    });
+
+    // Aggiungi il layer selezionato
+    if (mapLayer === 'streets') {
+      layersRef.current.streets.addTo(map.current);
+    } else {
+      layersRef.current.satellite.addTo(map.current);
+    }
+  }, [mapLayer]);
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !apiKey) return;
+    if (!searchQuery.trim()) return;
     
     setIsSearching(true);
     try {
+      // Usa Nominatim (OpenStreetMap) per la geocodifica
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${apiKey}&limit=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
       );
       
       if (!response.ok) throw new Error('Ricerca fallita');
       
       const data = await response.json();
       
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].center;
-        const placeName = data.features[0].place_name;
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        const latNum = parseFloat(lat);
+        const lonNum = parseFloat(lon);
         
+        // Rimuovi marker precedenti
         markersRef.current.forEach(marker => marker.remove());
         markersRef.current = [];
         
-        const marker = new mapboxgl.Marker({ color: '#0080ff' })
-          .setLngLat([lng, lat])
-          .setPopup(new mapboxgl.Popup().setHTML(`<strong>${placeName}</strong>`))
-          .addTo(map.current!);
+        // Aggiungi nuovo marker
+        const marker = L.marker([latNum, lonNum])
+          .addTo(map.current!)
+          .bindPopup(`<strong>${display_name}</strong>`)
+          .openPopup();
         
         markersRef.current.push(marker);
         
-        map.current?.flyTo({
-          center: [lng, lat],
-          zoom: 14,
-          pitch: 60,
-          duration: 2000,
+        // Centra la mappa
+        map.current?.setView([latNum, lonNum], 14, {
+          animate: true,
+          duration: 1.5,
         });
         
         toast.success('Luogo trovato!', {
-          description: placeName,
+          description: display_name,
         });
       } else {
         toast.error('Nessun risultato trovato');
@@ -167,20 +145,26 @@ const MapView = ({ apiKey }: MapViewProps) => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const { longitude, latitude } = position.coords;
-          setUserLocation([longitude, latitude]);
+          const { latitude, longitude } = position.coords;
           
-          map.current?.flyTo({
-            center: [longitude, latitude],
-            zoom: 14,
-            pitch: 60,
-            duration: 2000,
+          // Centra la mappa
+          map.current?.setView([latitude, longitude], 14, {
+            animate: true,
+            duration: 1.5,
           });
           
-          const marker = new mapboxgl.Marker({ color: '#00d4ff' })
-            .setLngLat([longitude, latitude])
-            .setPopup(new mapboxgl.Popup().setHTML('<strong>La tua posizione</strong>'))
-            .addTo(map.current!);
+          // Aggiungi marker personalizzato
+          const customIcon = L.divIcon({
+            className: 'custom-location-marker',
+            html: `<div style="background: #00d4ff; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          });
+          
+          const marker = L.marker([latitude, longitude], { icon: customIcon })
+            .addTo(map.current!)
+            .bindPopup('<strong>La tua posizione</strong>')
+            .openPopup();
           
           markersRef.current.push(marker);
           
@@ -201,7 +185,7 @@ const MapView = ({ apiKey }: MapViewProps) => {
       <div ref={mapContainer} className="absolute inset-0" />
       
       {/* Search Bar */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-10">
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[1000]">
         <div className="glass-panel rounded-xl p-3 shadow-elegant">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -210,7 +194,7 @@ const MapView = ({ apiKey }: MapViewProps) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Cerca luoghi, indirizzi, coordinate..."
+                placeholder="Cerca luoghi, indirizzi, città..."
                 className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
@@ -227,21 +211,21 @@ const MapView = ({ apiKey }: MapViewProps) => {
       </div>
 
       {/* Control Panel */}
-      <div className="absolute top-6 right-6 z-10 flex flex-col gap-3">
+      <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-3">
         <div className="glass-panel rounded-xl p-2 shadow-glass">
           <Button
-            variant={mapStyle === 'streets' ? 'default' : 'ghost'}
+            variant={mapLayer === 'streets' ? 'default' : 'ghost'}
             size="icon"
-            onClick={() => setMapStyle('streets')}
+            onClick={() => setMapLayer('streets')}
             className="w-12 h-12"
             title="Vista stradale"
           >
             <MapIcon className="h-5 w-5" />
           </Button>
           <Button
-            variant={mapStyle === 'satellite' ? 'default' : 'ghost'}
+            variant={mapLayer === 'satellite' ? 'default' : 'ghost'}
             size="icon"
-            onClick={() => setMapStyle('satellite')}
+            onClick={() => setMapLayer('satellite')}
             className="w-12 h-12"
             title="Vista satellitare"
           >
@@ -263,14 +247,14 @@ const MapView = ({ apiKey }: MapViewProps) => {
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-6 left-6 z-10">
+      <div className="absolute bottom-6 left-6 z-[1000]">
         <div className="glass-panel rounded-xl p-4 shadow-glass max-w-xs">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Sistema di Mappatura Digitale</h3>
+            <h3 className="font-semibold text-sm">Sistema OpenStreetMap</h3>
           </div>
           <p className="text-xs text-muted-foreground">
-            Visualizzazione 3D • Ricerca geocoding • Multi-layer • Real-time
+            100% Gratuito • Open Source • Geocoding • Multi-layer • Real-time
           </p>
         </div>
       </div>
