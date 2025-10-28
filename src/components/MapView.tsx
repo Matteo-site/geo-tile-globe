@@ -41,6 +41,7 @@ const MapView = () => {
   const [transportMode, setTransportMode] = useState<'driving' | 'transit'>('driving');
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
+  const [currentHeading, setCurrentHeading] = useState<number>(0);
   const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
   const [currentInstruction, setCurrentInstruction] = useState(0);
   const [totalDistance, setTotalDistance] = useState(0);
@@ -95,6 +96,21 @@ const MapView = () => {
       }
     };
   }, []);
+
+  // Effetto per ruotare la mappa durante la navigazione
+  useEffect(() => {
+    if (isNavigating && map.current && mapContainer.current) {
+      const mapElement = mapContainer.current.querySelector('.leaflet-map-pane') as HTMLElement;
+      if (mapElement) {
+        mapElement.style.transform = `rotate(${-currentHeading}deg)`;
+      }
+    } else if (!isNavigating && mapContainer.current) {
+      const mapElement = mapContainer.current.querySelector('.leaflet-map-pane') as HTMLElement;
+      if (mapElement) {
+        mapElement.style.transform = 'rotate(0deg)';
+      }
+    }
+  }, [isNavigating, currentHeading]);
 
   useEffect(() => {
     if (!map.current || !layersRef.current) return;
@@ -314,32 +330,69 @@ const MapView = () => {
     }
 
     setIsNavigating(true);
+    let lastPosition: [number, number] | null = null;
     
     // Avvia tracking GPS
     if ('geolocation' in navigator) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
-          const { latitude, longitude } = position.coords;
+          const { latitude, longitude, heading } = position.coords;
           const newPos: [number, number] = [latitude, longitude];
+          
+          // Calcola heading se non disponibile dal GPS
+          let calculatedHeading = heading || 0;
+          if (lastPosition && (!heading || heading === null)) {
+            const lat1 = lastPosition[0] * Math.PI / 180;
+            const lat2 = latitude * Math.PI / 180;
+            const lon1 = lastPosition[1] * Math.PI / 180;
+            const lon2 = longitude * Math.PI / 180;
+            
+            const dLon = lon2 - lon1;
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            calculatedHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+          }
+          
+          setCurrentHeading(calculatedHeading);
           setCurrentPosition(newPos);
+          lastPosition = newPos;
+
+          // Crea icona freccia che punta nella direzione del movimento
+          const arrowIcon = L.divIcon({
+            className: 'custom-navigation-marker',
+            html: `
+              <div style="
+                width: 40px; 
+                height: 40px; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center;
+                transform: rotate(${calculatedHeading}deg);
+              ">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
+                  <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
+                </svg>
+              </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
 
           // Aggiorna marker posizione
           if (!locationMarkerRef.current) {
-            const locationIcon = L.divIcon({
-              className: 'custom-location-marker',
-              html: `<div style="background: #00d4ff; width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); animation: pulse 2s infinite;"></div>`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12],
-            });
-            
-            locationMarkerRef.current = L.marker(newPos, { icon: locationIcon })
+            locationMarkerRef.current = L.marker(newPos, { icon: arrowIcon })
               .addTo(map.current!);
           } else {
+            locationMarkerRef.current.setIcon(arrowIcon);
             locationMarkerRef.current.setLatLng(newPos);
           }
 
-          // Centra mappa sulla posizione
-          map.current?.setView(newPos, 16);
+          // Centra mappa sulla posizione e ruota in base alla direzione
+          map.current?.setView(newPos, 18, {
+            animate: true,
+            duration: 0.5
+          });
 
           // TODO: Calcola distanza dalla prossima svolta e aggiorna currentInstruction
         },
