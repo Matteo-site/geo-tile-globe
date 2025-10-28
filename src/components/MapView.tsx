@@ -579,25 +579,25 @@ const MapView = () => {
       </div>
 
       {/* Control Panel */}
-      <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-3">
+      <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
         <div className="glass-panel rounded-xl p-2 shadow-glass">
           <Button
             variant={mapLayer === 'streets' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('streets')}
-            className="w-12 h-12"
+            className="w-12 h-12 sm:w-14 sm:h-14"
             title="Vista stradale"
           >
-            <MapIcon className="h-5 w-5" />
+            <MapIcon className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
           <Button
             variant={mapLayer === 'satellite' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('satellite')}
-            className="w-12 h-12"
+            className="w-12 h-12 sm:w-14 sm:h-14"
             title="Vista satellitare"
           >
-            <Satellite className="h-5 w-5" />
+            <Satellite className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
         </div>
         
@@ -606,10 +606,10 @@ const MapView = () => {
             variant="ghost"
             size="icon"
             onClick={getUserLocation}
-            className="w-12 h-12"
+            className="w-12 h-12 sm:w-14 sm:h-14"
             title="La mia posizione"
           >
-            <Navigation className="h-5 w-5" />
+            <Navigation className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
         </div>
       </div>
@@ -648,14 +648,14 @@ const MapView = () => {
       )}
 
       {/* Legend */}
-      <div className="absolute bottom-6 left-6 z-[1000]">
-        <div className="glass-panel rounded-xl p-4 shadow-glass max-w-xs">
-          <div className="flex items-center gap-2 mb-2">
+      <div className="absolute bottom-6 right-6 z-[1000]">
+        <div className="glass-panel rounded-xl p-3 sm:p-4 shadow-glass max-w-[200px] sm:max-w-xs">
+          <div className="flex items-center gap-2 mb-1 sm:mb-2">
             <Layers className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Sistema OpenStreetMap</h3>
+            <h3 className="font-semibold text-xs sm:text-sm">Sistema OpenStreetMap</h3>
           </div>
-          <p className="text-xs text-muted-foreground">
-            100% Gratuito • Open Source • GPS Real-time • Turn-by-turn • Transit
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
+            100% Gratuito • Open Source • GPS Real-time
           </p>
         </div>
       </div>
