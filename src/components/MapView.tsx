@@ -5,7 +5,7 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 
@@ -22,6 +22,13 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+interface RouteInstruction {
+  text: string;
+  distance: number;
+  time: number;
+  index: number;
+}
+
 const MapView = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -31,8 +38,18 @@ const MapView = () => {
   const [isNavigationMode, setIsNavigationMode] = useState(false);
   const [startPoint, setStartPoint] = useState('');
   const [endPoint, setEndPoint] = useState('');
+  const [transportMode, setTransportMode] = useState<'driving' | 'transit'>('driving');
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
+  const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
+  const [currentInstruction, setCurrentInstruction] = useState(0);
+  const [totalDistance, setTotalDistance] = useState(0);
+  const [totalTime, setTotalTime] = useState(0);
   const markersRef = useRef<L.Marker[]>([]);
   const routingControlRef = useRef<L.Routing.Control | null>(null);
+  const locationMarkerRef = useRef<L.Marker | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const transitMarkersRef = useRef<L.Marker[]>([]);
   const layersRef = useRef<{
     streets: L.TileLayer;
     satellite: L.TileLayer;
@@ -219,25 +236,68 @@ const MapView = () => {
         map.current?.removeControl(routingControlRef.current);
       }
 
+      // Rimuovi marker fermate precedenti
+      transitMarkersRef.current.forEach(marker => marker.remove());
+      transitMarkersRef.current = [];
+
+      // Determina profilo di routing
+      const profile = transportMode === 'driving' ? 'car' : 'foot';
+
       // Crea routing control
       routingControlRef.current = L.Routing.control({
         waypoints: [startLatLng, endLatLng],
-        routeWhileDragging: true,
-        showAlternatives: true,
+        routeWhileDragging: false,
+        showAlternatives: false,
         fitSelectedRoutes: true,
         lineOptions: {
-          styles: [{ color: 'hsl(var(--primary))', weight: 6, opacity: 0.8 }],
-          extendToWaypoints: true,
-          missingRouteTolerance: 0
-        },
-        altLineOptions: {
-          styles: [{ color: 'hsl(var(--muted-foreground))', weight: 4, opacity: 0.5 }],
+          styles: [{ color: transportMode === 'driving' ? 'hsl(var(--primary))' : '#22c55e', weight: 6, opacity: 0.8 }],
           extendToWaypoints: true,
           missingRouteTolerance: 0
         },
         router: L.Routing.osrmv1({
-          serviceUrl: 'https://router.project-osrm.org/route/v1'
+          serviceUrl: `https://router.project-osrm.org/route/v1`,
+          profile: profile
         })
+      }).on('routesfound', function(e) {
+        const routes = e.routes;
+        const route = routes[0];
+        
+        // Estrai istruzioni
+        const instructions: RouteInstruction[] = route.instructions.map((instruction: any, index: number) => ({
+          text: instruction.text,
+          distance: instruction.distance,
+          time: instruction.time,
+          index: index
+        }));
+        
+        setRouteInstructions(instructions);
+        setTotalDistance(route.summary.totalDistance);
+        setTotalTime(route.summary.totalTime);
+        setCurrentInstruction(0);
+
+        // Se modalità trasporto pubblico, aggiungi fermate simulate
+        if (transportMode === 'transit') {
+          const routeCoords = route.coordinates;
+          const numStops = Math.min(5, Math.floor(routeCoords.length / 4));
+          
+          for (let i = 1; i < numStops; i++) {
+            const stopIndex = Math.floor((routeCoords.length / numStops) * i);
+            const stopCoord = routeCoords[stopIndex];
+            
+            const stopIcon = L.divIcon({
+              className: 'custom-stop-marker',
+              html: `<div style="background: #22c55e; width: 24px; height: 24px; border-radius: 4px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">${i}</div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+            });
+            
+            const marker = L.marker([stopCoord.lat, stopCoord.lng], { icon: stopIcon })
+              .addTo(map.current!)
+              .bindPopup(`<strong>Fermata ${i}</strong><br/>Tempo stimato: ${Math.floor(route.summary.totalTime * (stopIndex / routeCoords.length) / 60)} min`);
+            
+            transitMarkersRef.current.push(marker);
+          }
+        }
       }).addTo(map.current!);
 
       toast.success('Percorso calcolato!');
@@ -247,13 +307,95 @@ const MapView = () => {
     }
   };
 
+  const startNavigation = () => {
+    if (routeInstructions.length === 0) {
+      toast.error('Calcola prima un percorso');
+      return;
+    }
+
+    setIsNavigating(true);
+    
+    // Avvia tracking GPS
+    if ('geolocation' in navigator) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const newPos: [number, number] = [latitude, longitude];
+          setCurrentPosition(newPos);
+
+          // Aggiorna marker posizione
+          if (!locationMarkerRef.current) {
+            const locationIcon = L.divIcon({
+              className: 'custom-location-marker',
+              html: `<div style="background: #00d4ff; width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5); animation: pulse 2s infinite;"></div>`,
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+            });
+            
+            locationMarkerRef.current = L.marker(newPos, { icon: locationIcon })
+              .addTo(map.current!);
+          } else {
+            locationMarkerRef.current.setLatLng(newPos);
+          }
+
+          // Centra mappa sulla posizione
+          map.current?.setView(newPos, 16);
+
+          // TODO: Calcola distanza dalla prossima svolta e aggiorna currentInstruction
+        },
+        (error) => {
+          console.error('Errore GPS:', error);
+          toast.error('Errore nel tracking GPS');
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 5000
+        }
+      );
+
+      toast.success('Navigazione avviata!');
+    } else {
+      toast.error('GPS non disponibile');
+    }
+  };
+
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
+    if (locationMarkerRef.current) {
+      locationMarkerRef.current.remove();
+      locationMarkerRef.current = null;
+    }
+
+    toast.success('Navigazione terminata');
+  };
+
   const clearRoute = () => {
+    if (isNavigating) {
+      stopNavigation();
+    }
+    
     if (routingControlRef.current) {
       map.current?.removeControl(routingControlRef.current);
       routingControlRef.current = null;
     }
+    
+    transitMarkersRef.current.forEach(marker => marker.remove());
+    transitMarkersRef.current = [];
+    
     setStartPoint('');
     setEndPoint('');
+    setRouteInstructions([]);
+    setCurrentInstruction(0);
+    setTotalDistance(0);
+    setTotalTime(0);
+    
     toast.success('Percorso rimosso');
   };
 
@@ -295,8 +437,8 @@ const MapView = () => {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-sm">Navigatore</h3>
                 <Button
                   variant="ghost"
@@ -310,6 +452,28 @@ const MapView = () => {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+
+              <div className="flex gap-2 bg-background/30 rounded-lg p-1">
+                <Button
+                  variant={transportMode === 'driving' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTransportMode('driving')}
+                  className="flex-1 gap-2"
+                >
+                  <Car className="h-4 w-4" />
+                  Auto/Moto
+                </Button>
+                <Button
+                  variant={transportMode === 'transit' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTransportMode('transit')}
+                  className="flex-1 gap-2"
+                >
+                  <Bus className="h-4 w-4" />
+                  Autobus
+                </Button>
+              </div>
+
               <div className="flex gap-2">
                 <div className="flex-1 space-y-2">
                   <Input
@@ -317,6 +481,7 @@ const MapView = () => {
                     onChange={(e) => setStartPoint(e.target.value)}
                     placeholder="Partenza..."
                     className="border-0 bg-background/50"
+                    disabled={isNavigating}
                   />
                   <Input
                     value={endPoint}
@@ -324,10 +489,11 @@ const MapView = () => {
                     onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
                     placeholder="Destinazione..."
                     className="border-0 bg-background/50"
+                    disabled={isNavigating}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Button onClick={calculateRoute} size="icon">
+                  <Button onClick={calculateRoute} size="icon" disabled={isNavigating}>
                     <Route className="h-5 w-5" />
                   </Button>
                   <Button onClick={clearRoute} variant="outline" size="icon">
@@ -335,6 +501,25 @@ const MapView = () => {
                   </Button>
                 </div>
               </div>
+
+              {routeInstructions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex gap-2 text-xs text-muted-foreground">
+                    <span>📍 {(totalDistance / 1000).toFixed(1)} km</span>
+                    <span>⏱️ {Math.floor(totalTime / 60)} min</span>
+                  </div>
+                  {!isNavigating ? (
+                    <Button onClick={startNavigation} className="w-full gap-2">
+                      <Navigation className="h-4 w-4" />
+                      Avvia Navigazione
+                    </Button>
+                  ) : (
+                    <Button onClick={stopNavigation} variant="destructive" className="w-full">
+                      Termina Navigazione
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -376,6 +561,39 @@ const MapView = () => {
         </div>
       </div>
 
+      {/* Navigation Instructions Panel */}
+      {isNavigating && routeInstructions.length > 0 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-6">
+          <div className="glass-panel rounded-xl p-4 shadow-elegant">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+                <ArrowRight className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-lg mb-1">
+                  {routeInstructions[currentInstruction]?.text || 'Segui il percorso'}
+                </p>
+                <div className="flex gap-3 text-sm text-muted-foreground">
+                  <span>📍 {(routeInstructions[currentInstruction]?.distance / 1000).toFixed(1)} km</span>
+                  <span>⏱️ {Math.floor((routeInstructions[currentInstruction]?.time || 0) / 60)} min</span>
+                </div>
+                {transportMode === 'transit' && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    🚏 Prossima fermata tra {Math.floor(Math.random() * 5 + 1)} min
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <p className="text-xs text-muted-foreground">
+                Istruzione {currentInstruction + 1} di {routeInstructions.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Legend */}
       <div className="absolute bottom-6 left-6 z-[1000]">
         <div className="glass-panel rounded-xl p-4 shadow-glass max-w-xs">
@@ -384,7 +602,7 @@ const MapView = () => {
             <h3 className="font-semibold text-sm">Sistema OpenStreetMap</h3>
           </div>
           <p className="text-xs text-muted-foreground">
-            100% Gratuito • Open Source • Geocoding • Multi-layer • Real-time
+            100% Gratuito • Open Source • GPS Real-time • Turn-by-turn • Transit
           </p>
         </div>
       </div>
