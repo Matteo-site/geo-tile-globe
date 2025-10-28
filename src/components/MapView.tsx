@@ -456,130 +456,133 @@ const MapView = () => {
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
       
-      {/* Search Bar / Navigation */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[1000]">
-        <div className="glass-panel rounded-xl p-3 shadow-elegant">
-          {!isNavigationMode ? (
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="Cerca luoghi, indirizzi, città..."
-                  className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
-                />
-              </div>
-              <Button 
-                onClick={handleSearch}
-                disabled={isSearching}
-                size="icon"
-                className="shrink-0"
-              >
-                <Search className="h-5 w-5" />
-              </Button>
-              <Button 
-                onClick={() => setIsNavigationMode(true)}
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                title="Modalità navigazione"
-              >
-                <Route className="h-5 w-5" />
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Navigatore</h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setIsNavigationMode(false);
-                    clearRoute();
-                  }}
-                  className="h-8 w-8"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="flex gap-2 bg-background/30 rounded-lg p-1">
-                <Button
-                  variant={transportMode === 'driving' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTransportMode('driving')}
-                  className="flex-1 gap-2"
-                >
-                  <Car className="h-4 w-4" />
-                  Auto/Moto
-                </Button>
-                <Button
-                  variant={transportMode === 'transit' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTransportMode('transit')}
-                  className="flex-1 gap-2"
-                >
-                  <Bus className="h-4 w-4" />
-                  Autobus
-                </Button>
-              </div>
-
+      {/* Search Bar / Navigation - Hidden during navigation */}
+      {!isNavigating && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[1000]">
+          <div className="glass-panel rounded-xl p-3 shadow-elegant">
+            {!isNavigationMode ? (
               <div className="flex gap-2">
-                <div className="flex-1 space-y-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
-                    value={startPoint}
-                    onChange={(e) => setStartPoint(e.target.value)}
-                    placeholder="Partenza..."
-                    className="border-0 bg-background/50"
-                    disabled={isNavigating}
-                  />
-                  <Input
-                    value={endPoint}
-                    onChange={(e) => setEndPoint(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
-                    placeholder="Destinazione..."
-                    className="border-0 bg-background/50"
-                    disabled={isNavigating}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    placeholder="Cerca luoghi, indirizzi, città..."
+                    className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Button onClick={calculateRoute} size="icon" disabled={isNavigating}>
-                    <Route className="h-5 w-5" />
-                  </Button>
-                  <Button onClick={clearRoute} variant="outline" size="icon">
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
+                <Button 
+                  onClick={handleSearch}
+                  disabled={isSearching}
+                  size="icon"
+                  className="shrink-0"
+                >
+                  <Search className="h-5 w-5" />
+                </Button>
+                <Button 
+                  onClick={() => setIsNavigationMode(true)}
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  title="Modalità navigazione"
+                >
+                  <Route className="h-5 w-5" />
+                </Button>
               </div>
-
-              {routeInstructions.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex gap-2 text-xs text-muted-foreground">
-                    <span>📍 {(totalDistance / 1000).toFixed(1)} km</span>
-                    <span>⏱️ {Math.floor(totalTime / 60)} min</span>
-                  </div>
-                  {!isNavigating ? (
-                    <Button onClick={startNavigation} className="w-full gap-2">
-                      <Navigation className="h-4 w-4" />
-                      Avvia Navigazione
-                    </Button>
-                  ) : (
-                    <Button onClick={stopNavigation} variant="destructive" className="w-full">
-                      Termina Navigazione
-                    </Button>
-                  )}
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm">Navigatore</h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setIsNavigationMode(false);
+                      clearRoute();
+                    }}
+                    className="h-8 w-8"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Control Panel */}
-      <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
+                <div className="flex gap-2 bg-background/30 rounded-lg p-1">
+                  <Button
+                    variant={transportMode === 'driving' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setTransportMode('driving')}
+                    className="flex-1 gap-2"
+                  >
+                    <Car className="h-4 w-4" />
+                    Auto/Moto
+                  </Button>
+                  <Button
+                    variant={transportMode === 'transit' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setTransportMode('transit')}
+                    className="flex-1 gap-2"
+                  >
+                    <Bus className="h-4 w-4" />
+                    Autobus
+                  </Button>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      value={startPoint}
+                      onChange={(e) => setStartPoint(e.target.value)}
+                      placeholder="Partenza..."
+                      className="border-0 bg-background/50"
+                      disabled={isNavigating}
+                    />
+                    <Input
+                      value={endPoint}
+                      onChange={(e) => setEndPoint(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
+                      placeholder="Destinazione..."
+                      className="border-0 bg-background/50"
+                      disabled={isNavigating}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button onClick={calculateRoute} size="icon" disabled={isNavigating}>
+                      <Route className="h-5 w-5" />
+                    </Button>
+                    <Button onClick={clearRoute} variant="outline" size="icon">
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {routeInstructions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <span>📍 {(totalDistance / 1000).toFixed(1)} km</span>
+                      <span>⏱️ {Math.floor(totalTime / 60)} min</span>
+                    </div>
+                    {!isNavigating ? (
+                      <Button onClick={startNavigation} className="w-full gap-2">
+                        <Navigation className="h-4 w-4" />
+                        Avvia Navigazione
+                      </Button>
+                    ) : (
+                      <Button onClick={stopNavigation} variant="destructive" className="w-full">
+                        Termina Navigazione
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Control Panel - Hidden during navigation */}
+      {!isNavigating && (
+        <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
         <div className="glass-panel rounded-xl p-2 shadow-glass">
           <Button
             variant={mapLayer === 'streets' ? 'default' : 'ghost'}
@@ -612,43 +615,51 @@ const MapView = () => {
             <Navigation className="h-5 w-5 sm:h-6 sm:w-6" />
           </Button>
         </div>
-      </div>
-
-      {/* Navigation Instructions Panel */}
-      {isNavigating && routeInstructions.length > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-6">
-          <div className="glass-panel rounded-xl p-4 shadow-elegant">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-                <ArrowRight className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-lg mb-1">
-                  {routeInstructions[currentInstruction]?.text || 'Segui il percorso'}
-                </p>
-                <div className="flex gap-3 text-sm text-muted-foreground">
-                  <span>📍 {(routeInstructions[currentInstruction]?.distance / 1000).toFixed(1)} km</span>
-                  <span>⏱️ {Math.floor((routeInstructions[currentInstruction]?.time || 0) / 60)} min</span>
-                </div>
-                {transportMode === 'transit' && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    🚏 Prossima fermata tra {Math.floor(Math.random() * 5 + 1)} min
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            <div className="mt-3 pt-3 border-t border-border/50">
-              <p className="text-xs text-muted-foreground">
-                Istruzione {currentInstruction + 1} di {routeInstructions.length}
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* Legend */}
-      <div className="absolute bottom-6 right-6 z-[1000]">
+      {/* Navigation Mode UI - Only X and route info */}
+      {isNavigating && (
+        <>
+          {/* Close Navigation Button - Bottom Left */}
+          <div className="absolute bottom-6 left-6 z-[1000]">
+            <Button
+              onClick={stopNavigation}
+              size="icon"
+              variant="destructive"
+              className="w-14 h-14 rounded-full shadow-elegant"
+              title="Chiudi navigazione"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+
+          {/* Navigation Info - Bottom Center */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
+            <div className="glass-panel rounded-2xl px-6 py-4 shadow-elegant">
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-primary">
+                    {Math.floor(totalTime / 60)}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-medium">minuti</div>
+                </div>
+                <div className="w-px h-12 bg-border"></div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-primary">
+                    {(totalDistance / 1000).toFixed(1)}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-medium">km</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Legend - Hidden during navigation */}
+      {!isNavigating && (
+        <div className="absolute bottom-6 right-6 z-[1000]">
         <div className="glass-panel rounded-xl p-3 sm:p-4 shadow-glass max-w-[200px] sm:max-w-xs">
           <div className="flex items-center gap-2 mb-1 sm:mb-2">
             <Layers className="h-4 w-4 text-primary" />
@@ -658,7 +669,8 @@ const MapView = () => {
             100% Gratuito • Open Source • GPS Real-time
           </p>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
