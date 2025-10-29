@@ -5,9 +5,10 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
+import { useDevice } from '@/contexts/DeviceContext';
 
 // Fix per i marker di Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -30,6 +31,7 @@ interface RouteInstruction {
 }
 
 const MapView = () => {
+  const { deviceType, setDeviceType } = useDevice();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
@@ -458,10 +460,34 @@ const MapView = () => {
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
       
+      {/* Settings Button - Top Right - Always visible */}
+      <div className="absolute top-4 right-4 z-[1000]">
+        <Button
+          onClick={() => {
+            localStorage.removeItem('deviceType');
+            setDeviceType(null);
+          }}
+          variant="outline"
+          size="icon"
+          className={deviceType === 'desktop' ? 'w-14 h-14' : 'w-10 h-10'}
+          title="Cambia dispositivo"
+        >
+          <Settings className={deviceType === 'desktop' ? 'h-6 w-6' : 'h-5 w-5'} />
+        </Button>
+      </div>
+      
       {/* Search Bar / Navigation - Hidden during navigation */}
       {!isNavigating && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-[1000]">
-          <div className="glass-panel rounded-xl p-3 shadow-elegant">
+        <div className={`absolute ${
+          deviceType === 'desktop' 
+            ? 'top-6 left-1/2 -translate-x-1/2 w-full max-w-3xl px-8' 
+            : deviceType === 'tablet'
+            ? 'top-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6'
+            : 'top-4 left-1/2 -translate-x-1/2 w-full max-w-xl px-4'
+        } z-[1000]`}>
+          <div className={`glass-panel rounded-xl shadow-elegant ${
+            deviceType === 'desktop' ? 'p-4' : deviceType === 'tablet' ? 'p-3' : 'p-2'
+          }`}>
             {!isNavigationMode ? (
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -595,25 +621,31 @@ const MapView = () => {
 
       {/* Control Panel - Hidden during navigation */}
       {!isNavigating && (
-        <div className="absolute bottom-6 left-6 z-[1000] flex flex-col gap-3">
+        <div className={`absolute z-[1000] flex flex-col gap-3 ${
+          deviceType === 'desktop' 
+            ? 'bottom-8 left-8' 
+            : deviceType === 'tablet'
+            ? 'bottom-6 left-6'
+            : 'bottom-4 left-4'
+        }`}>
         <div className="glass-panel rounded-xl p-2 shadow-glass">
           <Button
             variant={mapLayer === 'streets' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('streets')}
-            className="w-12 h-12 sm:w-14 sm:h-14"
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
             title="Vista stradale"
           >
-            <MapIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            <MapIcon className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
           </Button>
           <Button
             variant={mapLayer === 'satellite' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('satellite')}
-            className="w-12 h-12 sm:w-14 sm:h-14"
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
             title="Vista satellitare"
           >
-            <Satellite className="h-5 w-5 sm:h-6 sm:w-6" />
+            <Satellite className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
           </Button>
         </div>
         
@@ -622,10 +654,10 @@ const MapView = () => {
             variant="ghost"
             size="icon"
             onClick={getUserLocation}
-            className="w-12 h-12 sm:w-14 sm:h-14"
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
             title="La mia posizione"
           >
-            <Navigation className="h-5 w-5 sm:h-6 sm:w-6" />
+            <Navigation className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
           </Button>
         </div>
         </div>
@@ -634,35 +666,95 @@ const MapView = () => {
       {/* Navigation Mode UI - Only X and route info */}
       {isNavigating && (
         <>
-          {/* Close Navigation Button - Bottom Left - Optimized for car screens */}
-          <div className="absolute bottom-8 left-8 z-[1000]">
+          {/* Close Navigation Button - Bottom Left - Optimized for device types */}
+          <div className={`absolute z-[1000] ${
+            deviceType === 'desktop'
+              ? 'bottom-10 left-10'
+              : deviceType === 'tablet'
+              ? 'bottom-8 left-8'
+              : 'bottom-6 left-6'
+          }`}>
             <Button
               onClick={stopNavigation}
               size="icon"
               variant="destructive"
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full shadow-elegant hover:scale-105 transition-transform"
+              className={`rounded-full shadow-elegant hover:scale-105 transition-transform ${
+                deviceType === 'desktop'
+                  ? 'w-28 h-28'
+                  : deviceType === 'tablet'
+                  ? 'w-20 h-20'
+                  : 'w-16 h-16'
+              }`}
               title="Chiudi navigazione"
             >
-              <X className="h-10 w-10 sm:h-12 sm:w-12" />
+              <X className={deviceType === 'desktop' ? 'h-14 w-14' : deviceType === 'tablet' ? 'h-10 w-10' : 'h-8 w-8'} />
             </Button>
           </div>
 
-          {/* Navigation Info - Bottom Center - Optimized for car screens */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000]">
-            <div className="glass-panel rounded-3xl px-8 py-6 sm:px-12 sm:py-8 shadow-elegant">
-              <div className="flex items-center gap-8 sm:gap-12">
+          {/* Navigation Info - Bottom Center - Optimized for device types */}
+          <div className={`absolute left-1/2 -translate-x-1/2 z-[1000] ${
+            deviceType === 'desktop'
+              ? 'bottom-10'
+              : deviceType === 'tablet'
+              ? 'bottom-8'
+              : 'bottom-6'
+          }`}>
+            <div className={`glass-panel rounded-3xl shadow-elegant ${
+              deviceType === 'desktop'
+                ? 'px-12 py-8'
+                : deviceType === 'tablet'
+                ? 'px-8 py-6'
+                : 'px-6 py-4'
+            }`}>
+              <div className={`flex items-center ${
+                deviceType === 'desktop'
+                  ? 'gap-12'
+                  : deviceType === 'tablet'
+                  ? 'gap-8'
+                  : 'gap-6'
+              }`}>
                 <div className="text-center">
-                  <div className="text-4xl sm:text-6xl font-bold text-primary leading-none">
+                  <div className={`font-bold text-primary leading-none ${
+                    deviceType === 'desktop'
+                      ? 'text-7xl'
+                      : deviceType === 'tablet'
+                      ? 'text-5xl'
+                      : 'text-4xl'
+                  }`}>
                     {Math.floor(totalTime / 60)}
                   </div>
-                  <div className="text-sm sm:text-base text-muted-foreground font-semibold mt-2">minuti</div>
+                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                    deviceType === 'desktop'
+                      ? 'text-lg'
+                      : deviceType === 'tablet'
+                      ? 'text-base'
+                      : 'text-sm'
+                  }`}>minuti</div>
                 </div>
-                <div className="w-px h-16 sm:h-20 bg-border"></div>
+                <div className={`w-px bg-border ${
+                  deviceType === 'desktop'
+                    ? 'h-24'
+                    : deviceType === 'tablet'
+                    ? 'h-20'
+                    : 'h-16'
+                }`}></div>
                 <div className="text-center">
-                  <div className="text-4xl sm:text-6xl font-bold text-primary leading-none">
+                  <div className={`font-bold text-primary leading-none ${
+                    deviceType === 'desktop'
+                      ? 'text-7xl'
+                      : deviceType === 'tablet'
+                      ? 'text-5xl'
+                      : 'text-4xl'
+                  }`}>
                     {(totalDistance / 1000).toFixed(1)}
                   </div>
-                  <div className="text-sm sm:text-base text-muted-foreground font-semibold mt-2">km</div>
+                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                    deviceType === 'desktop'
+                      ? 'text-lg'
+                      : deviceType === 'tablet'
+                      ? 'text-base'
+                      : 'text-sm'
+                  }`}>km</div>
                 </div>
               </div>
             </div>
