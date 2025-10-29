@@ -5,10 +5,11 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding, Settings } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding, Settings, Mic, MicOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useDevice } from '@/contexts/DeviceContext';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
 
 // Fix per i marker di Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -32,6 +33,8 @@ interface RouteInstruction {
 
 const MapView = () => {
   const { deviceType, setDeviceType } = useDevice();
+  const { isRecording, isProcessing, startRecording, stopRecording } = useVoiceInput();
+  const [recordingFor, setRecordingFor] = useState<'start' | 'end' | null>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
@@ -456,6 +459,26 @@ const MapView = () => {
     toast.success('Percorso rimosso');
   };
 
+  const handleVoiceInput = async (field: 'start' | 'end') => {
+    if (isRecording) {
+      try {
+        const text = await stopRecording();
+        if (field === 'start') {
+          setStartPoint(text);
+        } else {
+          setEndPoint(text);
+        }
+        setRecordingFor(null);
+      } catch (error) {
+        console.error('Error in voice input:', error);
+        setRecordingFor(null);
+      }
+    } else {
+      setRecordingFor(field);
+      await startRecording();
+    }
+  };
+
   return (
     <div className="relative w-full h-screen">
       <div ref={mapContainer} className="absolute inset-0" />
@@ -569,27 +592,63 @@ const MapView = () => {
 
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-2">
-                    <Input
-                      value={startPoint}
-                      onChange={(e) => setStartPoint(e.target.value)}
-                      placeholder="Partenza..."
-                      className="border-0 bg-background/50"
-                      disabled={isNavigating}
-                    />
-                    <Input
-                      value={endPoint}
-                      onChange={(e) => setEndPoint(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
-                      placeholder="Destinazione..."
-                      className="border-0 bg-background/50"
-                      disabled={isNavigating}
-                    />
+                    <div className="relative">
+                      <Input
+                        value={startPoint}
+                        onChange={(e) => setStartPoint(e.target.value)}
+                        placeholder="Partenza..."
+                        className="border-0 bg-background/50 pr-10"
+                        disabled={isNavigating || isProcessing}
+                      />
+                      <Button
+                        onClick={() => handleVoiceInput('start')}
+                        size="icon"
+                        variant="ghost"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        disabled={isNavigating || isProcessing || (isRecording && recordingFor !== 'start')}
+                        title="Usa la voce"
+                      >
+                        {isProcessing && recordingFor === 'start' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isRecording && recordingFor === 'start' ? (
+                          <MicOff className="h-4 w-4 text-red-500 animate-pulse" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        value={endPoint}
+                        onChange={(e) => setEndPoint(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
+                        placeholder="Destinazione..."
+                        className="border-0 bg-background/50 pr-10"
+                        disabled={isNavigating || isProcessing}
+                      />
+                      <Button
+                        onClick={() => handleVoiceInput('end')}
+                        size="icon"
+                        variant="ghost"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        disabled={isNavigating || isProcessing || (isRecording && recordingFor !== 'end')}
+                        title="Usa la voce"
+                      >
+                        {isProcessing && recordingFor === 'end' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isRecording && recordingFor === 'end' ? (
+                          <MicOff className="h-4 w-4 text-red-500 animate-pulse" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Button onClick={calculateRoute} size="icon" disabled={isNavigating}>
+                    <Button onClick={calculateRoute} size="icon" disabled={isNavigating || isProcessing}>
                       <Route className="h-5 w-5" />
                     </Button>
-                    <Button onClick={clearRoute} variant="outline" size="icon">
+                    <Button onClick={clearRoute} variant="outline" size="icon" disabled={isProcessing}>
                       <X className="h-5 w-5" />
                     </Button>
                   </div>
