@@ -5,7 +5,7 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 
@@ -38,7 +38,7 @@ const MapView = () => {
   const [isNavigationMode, setIsNavigationMode] = useState(false);
   const [startPoint, setStartPoint] = useState('');
   const [endPoint, setEndPoint] = useState('');
-  const [transportMode, setTransportMode] = useState<'driving' | 'transit'>('driving');
+  const [transportMode, setTransportMode] = useState<'driving' | 'transit' | 'walking'>('driving');
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [currentHeading, setCurrentHeading] = useState<number>(0);
@@ -258,6 +258,7 @@ const MapView = () => {
 
       // Determina profilo di routing
       const profile = transportMode === 'driving' ? 'car' : 'foot';
+      const routeColor = transportMode === 'driving' ? 'hsl(var(--primary))' : transportMode === 'walking' ? '#f59e0b' : '#22c55e';
 
       // Crea routing control
       routingControlRef.current = L.Routing.control({
@@ -266,7 +267,7 @@ const MapView = () => {
         showAlternatives: false,
         fitSelectedRoutes: true,
         lineOptions: {
-          styles: [{ color: transportMode === 'driving' ? 'hsl(var(--primary))' : '#22c55e', weight: 6, opacity: 0.8 }],
+          styles: [{ color: routeColor, weight: 6, opacity: 0.8 }],
           extendToWaypoints: true,
           missingRouteTolerance: 0
         },
@@ -332,7 +333,7 @@ const MapView = () => {
     setIsNavigating(true);
     let lastPosition: [number, number] | null = null;
     
-    // Avvia tracking GPS
+    // Avvia tracking GPS con alta precisione per navigazione auto
     if ('geolocation' in navigator) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (position) => {
@@ -379,7 +380,7 @@ const MapView = () => {
             iconAnchor: [20, 20],
           });
 
-          // Aggiorna marker posizione
+          // Aggiorna marker posizione con smooth animation
           if (!locationMarkerRef.current) {
             locationMarkerRef.current = L.marker(newPos, { icon: arrowIcon })
               .addTo(map.current!);
@@ -388,10 +389,11 @@ const MapView = () => {
             locationMarkerRef.current.setLatLng(newPos);
           }
 
-          // Centra mappa sulla posizione e ruota in base alla direzione
-          map.current?.setView(newPos, 18, {
+          // Centra mappa sulla posizione con zoom appropriato per navigazione
+          const zoomLevel = transportMode === 'walking' ? 17 : 18;
+          map.current?.setView(newPos, zoomLevel, {
             animate: true,
-            duration: 0.5
+            duration: 0.3
           });
 
           // TODO: Calcola distanza dalla prossima svolta e aggiorna currentInstruction
@@ -402,8 +404,8 @@ const MapView = () => {
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 5000
+          maximumAge: 100, // Aggiornamento più frequente (100ms)
+          timeout: 10000 // Timeout più lungo per ambienti difficili
         }
       );
 
@@ -507,24 +509,35 @@ const MapView = () => {
                   </Button>
                 </div>
 
-                <div className="flex gap-2 bg-background/30 rounded-lg p-1">
+                <div className="grid grid-cols-3 gap-2 bg-background/30 rounded-lg p-1">
                   <Button
                     variant={transportMode === 'driving' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setTransportMode('driving')}
-                    className="flex-1 gap-2"
+                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
                   >
                     <Car className="h-4 w-4" />
-                    Auto/Moto
+                    <span className="hidden sm:inline">Auto/Moto</span>
+                    <span className="sm:hidden">Auto</span>
+                  </Button>
+                  <Button
+                    variant={transportMode === 'walking' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setTransportMode('walking')}
+                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
+                  >
+                    <PersonStanding className="h-4 w-4" />
+                    A piedi
                   </Button>
                   <Button
                     variant={transportMode === 'transit' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setTransportMode('transit')}
-                    className="flex-1 gap-2"
+                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
                   >
                     <Bus className="h-4 w-4" />
-                    Autobus
+                    <span className="hidden sm:inline">Autobus</span>
+                    <span className="sm:hidden">Bus</span>
                   </Button>
                 </div>
 
@@ -621,35 +634,35 @@ const MapView = () => {
       {/* Navigation Mode UI - Only X and route info */}
       {isNavigating && (
         <>
-          {/* Close Navigation Button - Bottom Left */}
-          <div className="absolute bottom-6 left-6 z-[1000]">
+          {/* Close Navigation Button - Bottom Left - Optimized for car screens */}
+          <div className="absolute bottom-8 left-8 z-[1000]">
             <Button
               onClick={stopNavigation}
               size="icon"
               variant="destructive"
-              className="w-14 h-14 rounded-full shadow-elegant"
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full shadow-elegant hover:scale-105 transition-transform"
               title="Chiudi navigazione"
             >
-              <X className="h-6 w-6" />
+              <X className="h-10 w-10 sm:h-12 sm:w-12" />
             </Button>
           </div>
 
-          {/* Navigation Info - Bottom Center */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
-            <div className="glass-panel rounded-2xl px-6 py-4 shadow-elegant">
-              <div className="flex items-center gap-6">
+          {/* Navigation Info - Bottom Center - Optimized for car screens */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[1000]">
+            <div className="glass-panel rounded-3xl px-8 py-6 sm:px-12 sm:py-8 shadow-elegant">
+              <div className="flex items-center gap-8 sm:gap-12">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">
+                  <div className="text-4xl sm:text-6xl font-bold text-primary leading-none">
                     {Math.floor(totalTime / 60)}
                   </div>
-                  <div className="text-xs text-muted-foreground font-medium">minuti</div>
+                  <div className="text-sm sm:text-base text-muted-foreground font-semibold mt-2">minuti</div>
                 </div>
-                <div className="w-px h-12 bg-border"></div>
+                <div className="w-px h-16 sm:h-20 bg-border"></div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary">
+                  <div className="text-4xl sm:text-6xl font-bold text-primary leading-none">
                     {(totalDistance / 1000).toFixed(1)}
                   </div>
-                  <div className="text-xs text-muted-foreground font-medium">km</div>
+                  <div className="text-sm sm:text-base text-muted-foreground font-semibold mt-2">km</div>
                 </div>
               </div>
             </div>
