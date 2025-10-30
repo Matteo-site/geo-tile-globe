@@ -461,37 +461,43 @@ const MapView = () => {
   };
 
   const getUserLocation = () => {
+    // Se abbiamo già la posizione corrente dal GPS tracking, centraci sopra
+    if (currentPosition && map.current) {
+      map.current.setView(currentPosition, 16, {
+        animate: true,
+        duration: 1.5,
+      });
+      
+      // Apri popup sul marker GPS esistente
+      if (locationMarkerRef.current) {
+        locationMarkerRef.current.openPopup();
+      }
+      
+      toast.success('Posizione rilevata!');
+      return;
+    }
+
+    // Altrimenti richiedi la posizione
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           
-          // Centra la mappa
-          map.current?.setView([latitude, longitude], 14, {
+          // Centra la mappa sulla posizione
+          map.current?.setView([latitude, longitude], 16, {
             animate: true,
             duration: 1.5,
           });
-          
-          // Aggiungi marker personalizzato
-          const customIcon = L.divIcon({
-            className: 'custom-location-marker',
-            html: `<div style="background: #00d4ff; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          });
-          
-          const marker = L.marker([latitude, longitude], { icon: customIcon })
-            .addTo(map.current!)
-            .bindPopup('<strong>La tua posizione</strong>')
-            .openPopup();
-          
-          markersRef.current.push(marker);
           
           toast.success('Posizione rilevata!');
         },
         (error) => {
           console.error('Errore geolocalizzazione:', error);
           toast.error('Impossibile rilevare la posizione');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000
         }
       );
     } else {
