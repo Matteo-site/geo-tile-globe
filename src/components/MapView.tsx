@@ -72,6 +72,8 @@ const MapView = () => {
     weather: null,
     traffic: null
   });
+  const warZonesLayerRef = useRef<L.GeoJSON | null>(null);
+  const [showWarZones, setShowWarZones] = useState(false);
   const [enabledLayers, setEnabledLayers] = useState({
     borders: false,
     timezones: false,
@@ -324,6 +326,12 @@ const MapView = () => {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
+    // Easter egg: cerca "guerre"
+    if (searchQuery.toLowerCase() === 'guerre') {
+      await showWarZonesEasterEgg();
+      return;
+    }
+    
     setIsSearching(true);
     try {
       // Usa Nominatim (OpenStreetMap) per la geocodifica
@@ -367,6 +375,86 @@ const MapView = () => {
     } catch (error) {
       console.error('Errore nella ricerca:', error);
       toast.error('Errore durante la ricerca');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const showWarZonesEasterEgg = async () => {
+    if (!map.current) return;
+
+    setIsSearching(true);
+    
+    try {
+      // Lista dei paesi attualmente in conflitto (2025)
+      const countriesInConflict = [
+        'Ukraine', 'Russia', 'Israel', 'Palestine', 'Syrian Arab Republic',
+        'Yemen', 'Sudan', 'Myanmar', 'Somalia', 'Democratic Republic of the Congo',
+        'Afghanistan', 'Iraq', 'Ethiopia', 'Mali', 'Burkina Faso', 'Niger'
+      ];
+
+      // Rimuovi layer precedente se esiste
+      if (warZonesLayerRef.current) {
+        map.current.removeLayer(warZonesLayerRef.current);
+        warZonesLayerRef.current = null;
+        setShowWarZones(false);
+        setIsSearching(false);
+        toast.info('Zone di conflitto nascoste');
+        return;
+      }
+
+      // Fetch GeoJSON dei confini mondiali
+      const response = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
+      const geojsonData = await response.json();
+
+      // Crea layer GeoJSON con stile personalizzato
+      warZonesLayerRef.current = L.geoJSON(geojsonData, {
+        style: (feature) => {
+          const countryName = feature?.properties?.ADMIN || feature?.properties?.name || '';
+          const isInConflict = countriesInConflict.some(conflict => 
+            countryName.toLowerCase().includes(conflict.toLowerCase()) ||
+            conflict.toLowerCase().includes(countryName.toLowerCase())
+          );
+
+          if (isInConflict) {
+            return {
+              fillColor: '#dc2626',
+              fillOpacity: 0.6,
+              color: '#991b1b',
+              weight: 2,
+              opacity: 1
+            };
+          } else {
+            return {
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              color: 'transparent',
+              weight: 0
+            };
+          }
+        },
+        onEachFeature: (feature, layer) => {
+          const countryName = feature?.properties?.ADMIN || feature?.properties?.name || 'Sconosciuto';
+          const isInConflict = countriesInConflict.some(conflict => 
+            countryName.toLowerCase().includes(conflict.toLowerCase()) ||
+            conflict.toLowerCase().includes(countryName.toLowerCase())
+          );
+
+          if (isInConflict) {
+            layer.bindPopup(`<strong>${countryName}</strong><br/><span style="color: #dc2626;">⚠️ Area di conflitto attivo</span>`);
+          }
+        }
+      }).addTo(map.current);
+
+      setShowWarZones(true);
+      map.current.setView([30, 20], 3, { animate: true, duration: 1.5 });
+
+      toast.error('Zone di conflitto visualizzate', {
+        description: `${countriesInConflict.length} paesi evidenziati in rosso`,
+      });
+    } catch (error) {
+      console.error('Errore nel caricamento delle zone di conflitto:', error);
+      toast.error('Errore nel caricamento dei dati');
     } finally {
       setIsSearching(false);
     }
