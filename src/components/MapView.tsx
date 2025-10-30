@@ -102,6 +102,91 @@ const MapView = () => {
     };
   }, []);
 
+  // GPS tracking in tempo reale sempre attivo
+  useEffect(() => {
+    if (!map.current) return;
+
+    let lastPosition: [number, number] | null = null;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, heading } = position.coords;
+        const newPos: [number, number] = [latitude, longitude];
+        
+        // Calcola heading se non disponibile
+        let calculatedHeading = heading || 0;
+        if (lastPosition && (!heading || heading === null)) {
+          const lat1 = lastPosition[0] * Math.PI / 180;
+          const lat2 = latitude * Math.PI / 180;
+          const lon1 = lastPosition[1] * Math.PI / 180;
+          const lon2 = longitude * Math.PI / 180;
+          
+          const dLon = lon2 - lon1;
+          const y = Math.sin(dLon) * Math.cos(lat2);
+          const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+          calculatedHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+        
+        setCurrentHeading(calculatedHeading);
+        setCurrentPosition(newPos);
+        lastPosition = newPos;
+
+        // Crea icona freccia GPS
+        const arrowIcon = L.divIcon({
+          className: 'custom-gps-marker',
+          html: `
+            <div style="
+              width: 40px; 
+              height: 40px; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center;
+              transform: rotate(${calculatedHeading}deg);
+            ">
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
+                <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
+              </svg>
+            </div>
+          `,
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+
+        // Aggiorna o crea marker GPS
+        if (!locationMarkerRef.current) {
+          locationMarkerRef.current = L.marker(newPos, { icon: arrowIcon })
+            .addTo(map.current!)
+            .bindPopup('<strong>La tua posizione</strong>');
+        } else {
+          locationMarkerRef.current.setIcon(arrowIcon);
+          locationMarkerRef.current.setLatLng(newPos);
+        }
+
+        // Durante navigazione, centra la mappa
+        if (isNavigating) {
+          const zoomLevel = transportMode === 'walking' ? 17 : 18;
+          map.current?.setView(newPos, zoomLevel, {
+            animate: true,
+            duration: 0.3
+          });
+        }
+      },
+      (error) => {
+        console.error('Errore GPS:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [map.current, isNavigating, transportMode]);
+
   // Effetto per ruotare la mappa durante la navigazione
   useEffect(() => {
     if (isNavigating && map.current && mapContainer.current) {
@@ -134,6 +219,13 @@ const MapView = () => {
       layersRef.current.satellite.addTo(map.current);
     }
   }, [mapLayer]);
+
+  // Ricalcola percorso quando cambia il mezzo di trasporto
+  useEffect(() => {
+    if (startPoint && endPoint && routingControlRef.current) {
+      calculateRoute();
+    }
+  }, [transportMode]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -261,9 +353,17 @@ const MapView = () => {
       transitMarkersRef.current.forEach(marker => marker.remove());
       transitMarkersRef.current = [];
 
-      // Determina profilo di routing
-      const profile = transportMode === 'driving' ? 'car' : 'foot';
-      const routeColor = transportMode === 'driving' ? 'hsl(var(--primary))' : transportMode === 'walking' ? '#f59e0b' : '#22c55e';
+      // Determina profilo di routing e colore in base al mezzo
+      let profile = 'car';
+      let routeColor = 'hsl(var(--primary))';
+      
+      if (transportMode === 'walking') {
+        profile = 'foot';
+        routeColor = '#f59e0b';
+      } else if (transportMode === 'transit') {
+        profile = 'foot'; // OSRM non supporta transit, usiamo foot come approssimazione
+        routeColor = '#22c55e';
+      }
 
       // Crea routing control
       routingControlRef.current = L.Routing.control({
@@ -336,103 +436,11 @@ const MapView = () => {
     }
 
     setIsNavigating(true);
-    let lastPosition: [number, number] | null = null;
-    
-    // Avvia tracking GPS con alta precisione per navigazione auto
-    if ('geolocation' in navigator) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude, heading } = position.coords;
-          const newPos: [number, number] = [latitude, longitude];
-          
-          // Calcola heading se non disponibile dal GPS
-          let calculatedHeading = heading || 0;
-          if (lastPosition && (!heading || heading === null)) {
-            const lat1 = lastPosition[0] * Math.PI / 180;
-            const lat2 = latitude * Math.PI / 180;
-            const lon1 = lastPosition[1] * Math.PI / 180;
-            const lon2 = longitude * Math.PI / 180;
-            
-            const dLon = lon2 - lon1;
-            const y = Math.sin(dLon) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-            calculatedHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-          }
-          
-          setCurrentHeading(calculatedHeading);
-          setCurrentPosition(newPos);
-          lastPosition = newPos;
-
-          // Crea icona freccia che punta nella direzione del movimento
-          const arrowIcon = L.divIcon({
-            className: 'custom-navigation-marker',
-            html: `
-              <div style="
-                width: 40px; 
-                height: 40px; 
-                display: flex; 
-                align-items: center; 
-                justify-content: center;
-                transform: rotate(${calculatedHeading}deg);
-              ">
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
-                  <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
-                </svg>
-              </div>
-            `,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20],
-          });
-
-          // Aggiorna marker posizione con smooth animation
-          if (!locationMarkerRef.current) {
-            locationMarkerRef.current = L.marker(newPos, { icon: arrowIcon })
-              .addTo(map.current!);
-          } else {
-            locationMarkerRef.current.setIcon(arrowIcon);
-            locationMarkerRef.current.setLatLng(newPos);
-          }
-
-          // Centra mappa sulla posizione con zoom appropriato per navigazione
-          const zoomLevel = transportMode === 'walking' ? 17 : 18;
-          map.current?.setView(newPos, zoomLevel, {
-            animate: true,
-            duration: 0.3
-          });
-
-          // TODO: Calcola distanza dalla prossima svolta e aggiorna currentInstruction
-        },
-        (error) => {
-          console.error('Errore GPS:', error);
-          toast.error('Errore nel tracking GPS');
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 100, // Aggiornamento più frequente (100ms)
-          timeout: 10000 // Timeout più lungo per ambienti difficili
-        }
-      );
-
-      toast.success('Navigazione avviata!');
-    } else {
-      toast.error('GPS non disponibile');
-    }
+    toast.success('Navigazione avviata! Il GPS ti seguirà in tempo reale');
   };
 
   const stopNavigation = () => {
     setIsNavigating(false);
-    
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-
-    if (locationMarkerRef.current) {
-      locationMarkerRef.current.remove();
-      locationMarkerRef.current = null;
-    }
-
     toast.success('Navigazione terminata');
   };
 
