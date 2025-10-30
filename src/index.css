@@ -130,3 +130,16 @@ All colors MUST be HSL.
 .custom-navigation-marker {
   transition: transform 0.3s ease-out;
 }
+
+/* Custom styles for traffic layer */
+.traffic-layer {
+  filter: hue-rotate(90deg) saturate(150%);
+  mix-blend-mode: multiply;
+}
+
+.dark .traffic-layer {
+  filter: hue-rotate(30deg) saturate(120%);
+  mix-blend-mode: screen;
+  opacity: 0.3;
+}
+

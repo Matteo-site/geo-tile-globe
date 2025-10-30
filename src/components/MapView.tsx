@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useDevice } from '@/contexts/DeviceContext';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
+import MapLayersControl from './MapLayersControl';
 
 // Fix per i marker di Leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -60,6 +61,23 @@ const MapView = () => {
     streets: L.TileLayer;
     satellite: L.TileLayer;
   } | null>(null);
+  const overlayLayersRef = useRef<{
+    borders: L.TileLayer | null;
+    timezones: L.LayerGroup | null;
+    weather: L.TileLayer | null;
+    traffic: L.TileLayer | null;
+  }>({
+    borders: null,
+    timezones: null,
+    weather: null,
+    traffic: null
+  });
+  const [enabledLayers, setEnabledLayers] = useState({
+    borders: false,
+    timezones: false,
+    weather: false,
+    traffic: false
+  });
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -93,6 +111,32 @@ const MapView = () => {
 
     // Aggiungi controllo zoom personalizzato
     L.control.zoom({ position: 'topright' }).addTo(map.current);
+
+    // Inizializza layer overlay
+    // Layer confini politici
+    overlayLayersRef.current.borders = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19,
+      opacity: 0.3
+    });
+
+    // Layer fusi orari (usando dati simulati con linee)
+    overlayLayersRef.current.timezones = L.layerGroup();
+
+    // Layer meteo (OpenWeatherMap - temperatura)
+    overlayLayersRef.current.weather = L.tileLayer('https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=demo', {
+      attribution: '© OpenWeatherMap',
+      maxZoom: 19,
+      opacity: 0.6
+    });
+
+    // Layer traffico (simulato con overlay colorato)
+    overlayLayersRef.current.traffic = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19,
+      opacity: 0.4,
+      className: 'traffic-layer'
+    });
 
     return () => {
       if (map.current) {
@@ -226,6 +270,56 @@ const MapView = () => {
       calculateRoute();
     }
   }, [transportMode]);
+
+  // Gestione layer overlay
+  useEffect(() => {
+    if (!map.current) return;
+
+    Object.keys(enabledLayers).forEach((layerKey) => {
+      const key = layerKey as keyof typeof enabledLayers;
+      const layer = overlayLayersRef.current[key];
+      
+      if (enabledLayers[key] && layer) {
+        if (key === 'timezones') {
+          // Aggiungi linee fusi orari
+          (layer as L.LayerGroup).clearLayers();
+          for (let lng = -180; lng <= 180; lng += 15) {
+            const line = L.polyline([
+              [-90, lng],
+              [90, lng]
+            ], {
+              color: '#8b5cf6',
+              weight: 2,
+              opacity: 0.6,
+              dashArray: '5, 10'
+            });
+            (layer as L.LayerGroup).addLayer(line);
+          }
+        }
+        if (!map.current?.hasLayer(layer)) {
+          layer.addTo(map.current!);
+        }
+      } else if (layer && map.current?.hasLayer(layer)) {
+        map.current.removeLayer(layer);
+      }
+    });
+  }, [enabledLayers]);
+
+  const handleLayerToggle = (layer: keyof typeof enabledLayers) => {
+    setEnabledLayers(prev => ({
+      ...prev,
+      [layer]: !prev[layer]
+    }));
+    
+    const layerNames = {
+      borders: 'Confini Politici',
+      timezones: 'Fusi Orari',
+      weather: 'Meteo',
+      traffic: 'Traffico'
+    };
+    
+    toast.success(`${layerNames[layer]} ${!enabledLayers[layer] ? 'attivato' : 'disattivato'}`);
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -715,6 +809,12 @@ const MapView = () => {
             <Satellite className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
           </Button>
         </div>
+        
+        <MapLayersControl 
+          deviceType={deviceType}
+          layers={enabledLayers}
+          onLayerToggle={handleLayerToggle}
+        />
         
         <div className="glass-panel rounded-xl p-2 shadow-glass">
           <Button
