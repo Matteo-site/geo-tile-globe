@@ -48,6 +48,7 @@ const MapView = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
   const [currentHeading, setCurrentHeading] = useState<number>(0);
+  const [currentSpeed, setCurrentSpeed] = useState<number>(0);
   const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
   const [currentInstruction, setCurrentInstruction] = useState(0);
   const [totalDistance, setTotalDistance] = useState(0);
@@ -176,6 +177,11 @@ const MapView = () => {
         setCurrentHeading(calculatedHeading);
         setCurrentPosition(newPos);
         lastPosition = newPos;
+        
+        // Calcola velocità in km/h
+        const speedMps = position.coords.speed || 0;
+        const speedKmh = speedMps * 3.6;
+        setCurrentSpeed(speedKmh);
 
         // Crea icona freccia GPS
         const arrowIcon = L.divIcon({
@@ -728,7 +734,14 @@ const MapView = () => {
                   <Search className="h-5 w-5" />
                 </Button>
                 <Button 
-                  onClick={() => setIsNavigationMode(true)}
+                  onClick={() => {
+                    setIsNavigationMode(true);
+                    // Imposta automaticamente la partenza alla posizione corrente
+                    if (currentPosition) {
+                      setStartPoint(`${currentPosition[0].toFixed(5)}, ${currentPosition[1].toFixed(5)}`);
+                      toast.success('Partenza impostata sulla tua posizione');
+                    }
+                  }}
                   variant="outline"
                   size="icon"
                   className="shrink-0"
@@ -789,11 +802,28 @@ const MapView = () => {
                 <div className="flex gap-2">
                   <div className="flex-1 space-y-2">
                     <div className="relative">
+                      <Button
+                        onClick={() => {
+                          if (currentPosition) {
+                            setStartPoint(`${currentPosition[0].toFixed(5)}, ${currentPosition[1].toFixed(5)}`);
+                            toast.success('Posizione impostata come partenza');
+                          } else {
+                            toast.error('Posizione GPS non disponibile');
+                          }
+                        }}
+                        size="icon"
+                        variant="ghost"
+                        className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 z-10"
+                        disabled={isNavigating || isProcessing || !currentPosition}
+                        title="Usa posizione attuale"
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
                       <Input
                         value={startPoint}
                         onChange={(e) => setStartPoint(e.target.value)}
                         placeholder="Partenza..."
-                        className="border-0 bg-background/50 pr-10"
+                        className="border-0 bg-background/50 pl-10 pr-10"
                         disabled={isNavigating || isProcessing}
                       />
                       <Button
@@ -1016,6 +1046,31 @@ const MapView = () => {
                       ? 'text-base'
                       : 'text-sm'
                   }`}>km</div>
+                </div>
+                <div className={`w-px bg-border ${
+                  deviceType === 'desktop'
+                    ? 'h-24'
+                    : deviceType === 'tablet'
+                    ? 'h-20'
+                    : 'h-16'
+                }`}></div>
+                <div className="text-center">
+                  <div className={`font-bold text-primary leading-none ${
+                    deviceType === 'desktop'
+                      ? 'text-7xl'
+                      : deviceType === 'tablet'
+                      ? 'text-5xl'
+                      : 'text-4xl'
+                  }`}>
+                    {Math.round(currentSpeed)}
+                  </div>
+                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                    deviceType === 'desktop'
+                      ? 'text-lg'
+                      : deviceType === 'tablet'
+                      ? 'text-base'
+                      : 'text-sm'
+                  }`}>km/h</div>
                 </div>
               </div>
             </div>
