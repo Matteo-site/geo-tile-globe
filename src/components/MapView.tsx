@@ -85,23 +85,30 @@ const MapView = () => {
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    // Inizializza la mappa
+    // Inizializza la mappa con opzioni di performance
     map.current = L.map(mapContainer.current, {
       center: [45, 12],
       zoom: 6,
       zoomControl: false,
+      preferCanvas: true, // Usa Canvas per rendering più veloce
     });
 
-    // Layer stradale (OpenStreetMap)
+    // Layer stradale (OpenStreetMap) con opzioni di performance
     const streetsLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
+      updateWhenIdle: true, // Aggiorna solo quando la mappa è ferma
+      updateWhenZooming: false, // Non aggiornare durante zoom
+      keepBuffer: 2, // Mantieni tile in cache
     });
 
-    // Layer satellitare (Esri)
+    // Layer satellitare (Esri) con opzioni di performance
     const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: '© <a href="https://www.esri.com/">Esri</a>',
       maxZoom: 19,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      keepBuffer: 2,
     });
 
     layersRef.current = {
@@ -149,14 +156,17 @@ const MapView = () => {
     };
   }, []);
 
-  // GPS tracking in tempo reale sempre attivo
+  // GPS tracking in tempo reale sempre attivo con throttling per performance
   useEffect(() => {
     if (!map.current) return;
 
     let lastPosition: [number, number] | null = null;
+    let lastUpdateTime = 0;
+    const UPDATE_THROTTLE = 500; // Aggiorna marker max ogni 500ms
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        const currentTime = Date.now();
         const { latitude, longitude, heading } = position.coords;
         const newPos: [number, number] = [latitude, longitude];
         
@@ -174,6 +184,7 @@ const MapView = () => {
           calculatedHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
         }
         
+        // Aggiorna sempre stato per velocità e heading
         setCurrentHeading(calculatedHeading);
         setCurrentPosition(newPos);
         lastPosition = newPos;
@@ -183,44 +194,59 @@ const MapView = () => {
         const speedKmh = speedMps * 3.6;
         setCurrentSpeed(speedKmh);
 
-        // Crea icona freccia GPS
-        const arrowIcon = L.divIcon({
-          className: 'custom-gps-marker',
-          html: `
-            <div style="
-              width: 40px; 
-              height: 40px; 
-              display: flex; 
-              align-items: center; 
-              justify-content: center;
-              transform: rotate(${calculatedHeading}deg);
-            ">
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
-                <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
-              </svg>
-            </div>
-          `,
-          iconSize: [40, 40],
-          iconAnchor: [20, 20],
-        });
+        // Throttle aggiornamenti marker per performance
+        if (currentTime - lastUpdateTime < UPDATE_THROTTLE) {
+          return;
+        }
+        lastUpdateTime = currentTime;
 
         // Aggiorna o crea marker GPS
         if (!locationMarkerRef.current) {
+          // Crea marker con icona iniziale
+          const arrowIcon = L.divIcon({
+            className: 'custom-gps-marker',
+            html: `
+              <div class="gps-arrow-container" style="
+                width: 40px; 
+                height: 40px; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center;
+                transform: rotate(${calculatedHeading}deg);
+                transition: transform 0.3s ease-out;
+              ">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
+                  <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
+                </svg>
+              </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
+          
           locationMarkerRef.current = L.marker(newPos, { icon: arrowIcon })
             .addTo(map.current!)
             .bindPopup('<strong>La tua posizione</strong>');
         } else {
-          locationMarkerRef.current.setIcon(arrowIcon);
+          // Aggiorna solo posizione e rotazione senza ricreare l'icona
           locationMarkerRef.current.setLatLng(newPos);
+          
+          // Aggiorna rotazione tramite CSS per performance
+          const markerElement = locationMarkerRef.current.getElement();
+          if (markerElement) {
+            const arrowContainer = markerElement.querySelector('.gps-arrow-container') as HTMLElement;
+            if (arrowContainer) {
+              arrowContainer.style.transform = `rotate(${calculatedHeading}deg)`;
+            }
+          }
         }
 
-        // Durante navigazione, centra la mappa
+        // Durante navigazione, centra la mappa senza animazione per fluidità
         if (isNavigating) {
           const zoomLevel = transportMode === 'walking' ? 17 : 18;
           map.current?.setView(newPos, zoomLevel, {
-            animate: true,
-            duration: 0.3
+            animate: false // Disabilita animazione per performance
           });
         }
       },
@@ -229,7 +255,7 @@ const MapView = () => {
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 1000,
+        maximumAge: 500, // Ridotto per dati più freschi
         timeout: 10000
       }
     );
@@ -239,18 +265,21 @@ const MapView = () => {
     };
   }, [map.current, isNavigating, transportMode]);
 
-  // Effetto per ruotare la mappa durante la navigazione
+  // Effetto per ruotare la mappa durante la navigazione (con throttling)
   useEffect(() => {
-    if (isNavigating && map.current && mapContainer.current) {
-      const mapElement = mapContainer.current.querySelector('.leaflet-map-pane') as HTMLElement;
-      if (mapElement) {
-        mapElement.style.transform = `rotate(${-currentHeading}deg)`;
-      }
-    } else if (!isNavigating && mapContainer.current) {
-      const mapElement = mapContainer.current.querySelector('.leaflet-map-pane') as HTMLElement;
-      if (mapElement) {
-        mapElement.style.transform = 'rotate(0deg)';
-      }
+    if (!mapContainer.current) return;
+    
+    const mapElement = mapContainer.current.querySelector('.leaflet-map-pane') as HTMLElement;
+    if (!mapElement) return;
+
+    if (isNavigating && map.current) {
+      // Applica rotazione con transizione CSS per smoothness
+      mapElement.style.transition = 'transform 0.3s ease-out';
+      mapElement.style.transform = `rotate(${-currentHeading}deg)`;
+    } else {
+      // Rimuovi rotazione quando non in navigazione
+      mapElement.style.transition = 'transform 0.5s ease-out';
+      mapElement.style.transform = 'rotate(0deg)';
     }
   }, [isNavigating, currentHeading]);
 
