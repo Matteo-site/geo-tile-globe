@@ -209,7 +209,15 @@ const MapView = () => {
         const speedKmh = speedMps * 3.6;
         setCurrentSpeed(speedKmh);
 
-        // Throttle aggiornamenti marker per performance
+        // Durante navigazione, centra SEMPRE la mappa in tempo reale
+        if (isNavigating) {
+          const zoomLevel = transportMode === 'walking' ? 17 : 18;
+          map.current?.setView(newPos, zoomLevel, {
+            animate: false // Disabilita animazione per performance
+          });
+        }
+
+        // Throttle aggiornamenti marker per performance (ma non il centering!)
         if (currentTime - lastUpdateTime < UPDATE_THROTTLE) {
           return;
         }
@@ -255,14 +263,6 @@ const MapView = () => {
               arrowContainer.style.transform = `rotate(${calculatedHeading}deg)`;
             }
           }
-        }
-
-        // Durante navigazione, centra la mappa senza animazione per fluidità
-        if (isNavigating) {
-          const zoomLevel = transportMode === 'walking' ? 17 : 18;
-          map.current?.setView(newPos, zoomLevel, {
-            animate: false // Disabilita animazione per performance
-          });
         }
       },
       (error) => {
