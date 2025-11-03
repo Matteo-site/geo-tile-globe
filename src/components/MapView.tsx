@@ -163,12 +163,27 @@ const MapView = () => {
     let lastPosition: [number, number] | null = null;
     let lastUpdateTime = 0;
     const UPDATE_THROTTLE = 500; // Aggiorna marker max ogni 500ms
+    const MAX_GPS_JUMP = 0.001; // ~111 metri - distanza massima accettabile tra aggiornamenti GPS
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const currentTime = Date.now();
-        const { latitude, longitude, heading } = position.coords;
+        const { latitude, longitude, heading, accuracy } = position.coords;
         const newPos: [number, number] = [latitude, longitude];
+        
+        // Filtra salti GPS anomali durante navigazione
+        if (isNavigating && lastPosition) {
+          const distance = Math.sqrt(
+            Math.pow(latitude - lastPosition[0], 2) + 
+            Math.pow(longitude - lastPosition[1], 2)
+          );
+          
+          // Se il salto è troppo grande e l'accuratezza è bassa, ignoralo
+          if (distance > MAX_GPS_JUMP && accuracy && accuracy > 50) {
+            console.warn('Salto GPS anomalo filtrato:', distance, 'accuracy:', accuracy);
+            return;
+          }
+        }
         
         // Calcola heading se non disponibile
         let calculatedHeading = heading || 0;
@@ -263,7 +278,30 @@ const MapView = () => {
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [map.current, isNavigating, transportMode]);
+  }, [isNavigating, transportMode]);
+
+  // Disabilita interazione con la mappa durante navigazione per evitare spostamenti accidentali
+  useEffect(() => {
+    if (!map.current) return;
+
+    if (isNavigating) {
+      // Disabilita tutti i controlli di interazione
+      map.current.dragging.disable();
+      map.current.touchZoom.disable();
+      map.current.doubleClickZoom.disable();
+      map.current.scrollWheelZoom.disable();
+      map.current.boxZoom.disable();
+      map.current.keyboard.disable();
+    } else {
+      // Riabilita tutti i controlli quando non in navigazione
+      map.current.dragging.enable();
+      map.current.touchZoom.enable();
+      map.current.doubleClickZoom.enable();
+      map.current.scrollWheelZoom.enable();
+      map.current.boxZoom.enable();
+      map.current.keyboard.enable();
+    }
+  }, [isNavigating]);
 
   // Effetto per ruotare la mappa durante la navigazione (con throttling)
   useEffect(() => {
