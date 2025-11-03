@@ -399,8 +399,8 @@ const MapView = () => {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
-    // Easter egg: cerca "guerre"
-    if (searchQuery.toLowerCase() === 'guerre') {
+    // Easter egg: cerca "guerre" o "war!"
+    if (searchQuery.toLowerCase() === 'guerre' || searchQuery.toLowerCase() === 'war!') {
       await showWarZonesEasterEgg();
       return;
     }
@@ -459,11 +459,24 @@ const MapView = () => {
     setIsSearching(true);
     
     try {
-      // Lista dei paesi attualmente in conflitto (2025)
+      // Lista dei paesi attualmente in conflitto con anno di inizio (2025)
       const countriesInConflict = [
-        'Ukraine', 'Russia', 'Israel', 'Palestine', 'Syrian Arab Republic',
-        'Yemen', 'Sudan', 'Myanmar', 'Somalia', 'Democratic Republic of the Congo',
-        'Afghanistan', 'Iraq', 'Ethiopia', 'Mali', 'Burkina Faso', 'Niger'
+        { name: 'Ukraine', startYear: 2014, description: 'Conflitto russo-ucraino' },
+        { name: 'Russia', startYear: 2014, description: 'Conflitto russo-ucraino' },
+        { name: 'Israel', startYear: 1948, description: 'Conflitto israelo-palestinese' },
+        { name: 'Palestine', startYear: 1948, description: 'Conflitto israelo-palestinese' },
+        { name: 'Syrian Arab Republic', startYear: 2011, description: 'Guerra civile siriana' },
+        { name: 'Yemen', startYear: 2014, description: 'Guerra civile yemenita' },
+        { name: 'Sudan', startYear: 2023, description: 'Guerra civile sudanese' },
+        { name: 'Myanmar', startYear: 2021, description: 'Conflitto post-golpe' },
+        { name: 'Somalia', startYear: 1991, description: 'Guerra civile somala' },
+        { name: 'Democratic Republic of the Congo', startYear: 1996, description: 'Conflitti nella RDC' },
+        { name: 'Afghanistan', startYear: 2001, description: 'Conflitto in Afghanistan' },
+        { name: 'Iraq', startYear: 2003, description: 'Conflitto in Iraq' },
+        { name: 'Ethiopia', startYear: 2020, description: 'Guerra del Tigray' },
+        { name: 'Mali', startYear: 2012, description: 'Conflitto nel Mali' },
+        { name: 'Burkina Faso', startYear: 2015, description: 'Insurrezione jihadista' },
+        { name: 'Niger', startYear: 2015, description: 'Insurrezione jihadista' }
       ];
 
       // Rimuovi layer precedente se esiste
@@ -484,12 +497,12 @@ const MapView = () => {
       warZonesLayerRef.current = L.geoJSON(geojsonData, {
         style: (feature) => {
           const countryName = feature?.properties?.ADMIN || feature?.properties?.name || '';
-          const isInConflict = countriesInConflict.some(conflict => 
-            countryName.toLowerCase().includes(conflict.toLowerCase()) ||
-            conflict.toLowerCase().includes(countryName.toLowerCase())
+          const conflictInfo = countriesInConflict.find(conflict => 
+            countryName.toLowerCase().includes(conflict.name.toLowerCase()) ||
+            conflict.name.toLowerCase().includes(countryName.toLowerCase())
           );
 
-          if (isInConflict) {
+          if (conflictInfo) {
             return {
               fillColor: '#dc2626',
               fillOpacity: 0.6,
@@ -508,13 +521,28 @@ const MapView = () => {
         },
         onEachFeature: (feature, layer) => {
           const countryName = feature?.properties?.ADMIN || feature?.properties?.name || 'Sconosciuto';
-          const isInConflict = countriesInConflict.some(conflict => 
-            countryName.toLowerCase().includes(conflict.toLowerCase()) ||
-            conflict.toLowerCase().includes(countryName.toLowerCase())
+          const conflictInfo = countriesInConflict.find(conflict => 
+            countryName.toLowerCase().includes(conflict.name.toLowerCase()) ||
+            conflict.name.toLowerCase().includes(countryName.toLowerCase())
           );
 
-          if (isInConflict) {
-            layer.bindPopup(`<strong>${countryName}</strong><br/><span style="color: #dc2626;">⚠️ Area di conflitto attivo</span>`);
+          if (conflictInfo) {
+            const currentYear = 2025;
+            const duration = currentYear - conflictInfo.startYear;
+            const durationText = duration === 0 ? 'meno di 1 anno' : 
+                                 duration === 1 ? '1 anno' : 
+                                 `${duration} anni`;
+            
+            layer.bindPopup(`
+              <div style="min-width: 200px;">
+                <strong style="font-size: 16px;">${countryName}</strong><br/>
+                <span style="color: #dc2626; font-weight: bold;">⚠️ Area di conflitto attivo</span><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>${conflictInfo.description}</strong><br/>
+                <span style="color: #666;">Iniziato: ${conflictInfo.startYear}</span><br/>
+                <span style="color: #666;">Durata: ${durationText}</span>
+              </div>
+            `);
           }
         }
       }).addTo(map.current);
