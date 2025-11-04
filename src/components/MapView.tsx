@@ -789,7 +789,9 @@ const MapView = () => {
       <div ref={mapContainer} className="absolute inset-0" />
       
       {/* Settings Button - Top Right - Always visible */}
-      <div className="absolute top-4 right-4 z-[1000]">
+      <div className={`absolute z-[1000] ${
+        deviceType === 'desktop' ? 'top-6 right-6' : deviceType === 'tablet' ? 'top-4 right-4' : 'top-2 right-2'
+      }`}>
         <Button
           onClick={() => {
             localStorage.removeItem('deviceType');
@@ -797,10 +799,10 @@ const MapView = () => {
           }}
           variant="outline"
           size="icon"
-          className={deviceType === 'desktop' ? 'w-14 h-14' : 'w-10 h-10'}
+          className={deviceType === 'desktop' ? 'w-14 h-14' : deviceType === 'tablet' ? 'w-10 h-10' : 'w-9 h-9'}
           title="Cambia dispositivo"
         >
-          <Settings className={deviceType === 'desktop' ? 'h-6 w-6' : 'h-5 w-5'} />
+          <Settings className={deviceType === 'desktop' ? 'h-6 w-6' : deviceType === 'tablet' ? 'h-5 w-5' : 'h-4 w-4'} />
         </Button>
       </div>
       
@@ -811,30 +813,34 @@ const MapView = () => {
             ? 'top-6 left-1/2 -translate-x-1/2 w-full max-w-3xl px-8' 
             : deviceType === 'tablet'
             ? 'top-4 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6'
-            : 'top-4 left-1/2 -translate-x-1/2 w-full max-w-xl px-4'
+            : 'top-2 left-1/2 -translate-x-1/2 w-full px-2'
         } z-[1000]`}>
-          <div className={`glass-panel rounded-xl shadow-elegant ${
-            deviceType === 'desktop' ? 'p-4' : deviceType === 'tablet' ? 'p-3' : 'p-2'
+          <div className={`glass-panel shadow-elegant ${
+            deviceType === 'desktop' ? 'rounded-xl p-4' : deviceType === 'tablet' ? 'rounded-xl p-3' : 'rounded-lg p-1.5'
           }`}>
             {!isNavigationMode ? (
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Search className={`absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground ${
+                    deviceType === 'phone' ? 'h-3.5 w-3.5' : 'h-5 w-5'
+                  }`} />
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Cerca luoghi, indirizzi, città..."
-                    className="pl-10 border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary"
+                    placeholder={deviceType === 'phone' ? 'Cerca...' : 'Cerca luoghi, indirizzi, città...'}
+                    className={`border-0 bg-background/50 focus-visible:ring-2 focus-visible:ring-primary ${
+                      deviceType === 'phone' ? 'pl-7 pr-2 py-1 text-xs h-8' : 'pl-10'
+                    }`}
                   />
                 </div>
                 <Button 
                   onClick={handleSearch}
                   disabled={isSearching}
                   size="icon"
-                  className="shrink-0"
+                  className={`shrink-0 ${deviceType === 'phone' ? 'h-8 w-8' : ''}`}
                 >
-                  <Search className="h-5 w-5" />
+                  <Search className={deviceType === 'phone' ? 'h-3.5 w-3.5' : 'h-5 w-5'} />
                 </Button>
                 <Button 
                   onClick={() => {
@@ -847,16 +853,16 @@ const MapView = () => {
                   }}
                   variant="outline"
                   size="icon"
-                  className="shrink-0"
+                  className={`shrink-0 ${deviceType === 'phone' ? 'h-8 w-8' : ''}`}
                   title="Modalità navigazione"
                 >
-                  <Route className="h-5 w-5" />
+                  <Route className={deviceType === 'phone' ? 'h-3.5 w-3.5' : 'h-5 w-5'} />
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className={deviceType === 'phone' ? 'space-y-1.5' : 'space-y-3'}>
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">Navigatore</h3>
+                  <h3 className={`font-semibold ${deviceType === 'phone' ? 'text-xs' : 'text-sm'}`}>Navigatore</h3>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -864,46 +870,46 @@ const MapView = () => {
                       setIsNavigationMode(false);
                       clearRoute();
                     }}
-                    className="h-8 w-8"
+                    className={deviceType === 'phone' ? 'h-6 w-6' : 'h-8 w-8'}
                   >
-                    <X className="h-4 w-4" />
+                    <X className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 bg-background/30 rounded-lg p-1">
+                <div className={`grid grid-cols-3 gap-1 bg-background/30 rounded-lg ${
+                  deviceType === 'phone' ? 'p-0.5' : 'p-1'
+                }`}>
                   <Button
                     variant={transportMode === 'driving' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setTransportMode('driving')}
-                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
+                    className={`gap-1 px-1 ${deviceType === 'phone' ? 'text-[10px] h-7' : 'gap-1.5 px-2 text-xs sm:text-sm sm:gap-2'}`}
                   >
-                    <Car className="h-4 w-4" />
-                    <span className="hidden sm:inline">Auto/Moto</span>
-                    <span className="sm:hidden">Auto</span>
+                    <Car className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
+                    <span className={deviceType === 'phone' ? '' : 'hidden sm:inline'}>Auto{deviceType === 'phone' ? '' : '/Moto'}</span>
                   </Button>
                   <Button
                     variant={transportMode === 'walking' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setTransportMode('walking')}
-                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
+                    className={`gap-1 px-1 ${deviceType === 'phone' ? 'text-[10px] h-7' : 'gap-1.5 px-2 text-xs sm:text-sm sm:gap-2'}`}
                   >
-                    <PersonStanding className="h-4 w-4" />
-                    A piedi
+                    <PersonStanding className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
+                    <span className={deviceType === 'phone' ? '' : ''}>Piedi</span>
                   </Button>
                   <Button
                     variant={transportMode === 'transit' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setTransportMode('transit')}
-                    className="gap-1.5 px-2 text-xs sm:text-sm sm:gap-2"
+                    className={`gap-1 px-1 ${deviceType === 'phone' ? 'text-[10px] h-7' : 'gap-1.5 px-2 text-xs sm:text-sm sm:gap-2'}`}
                   >
-                    <Bus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Autobus</span>
-                    <span className="sm:hidden">Bus</span>
+                    <Bus className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
+                    <span className={deviceType === 'phone' ? '' : 'hidden sm:inline'}>Bus</span>
                   </Button>
                 </div>
 
-                <div className="flex gap-2">
-                  <div className="flex-1 space-y-2">
+                <div className={deviceType === 'phone' ? 'flex gap-1' : 'flex gap-2'}>
+                  <div className={deviceType === 'phone' ? 'flex-1 space-y-1' : 'flex-1 space-y-2'}>
                     <div className="relative">
                       <Button
                         onClick={() => {
@@ -916,33 +922,39 @@ const MapView = () => {
                         }}
                         size="icon"
                         variant="ghost"
-                        className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 z-10"
+                        className={`absolute left-0.5 top-1/2 -translate-y-1/2 z-10 ${
+                          deviceType === 'phone' ? 'h-7 w-7' : 'h-8 w-8'
+                        }`}
                         disabled={isNavigating || isProcessing || !currentPosition}
                         title="Usa posizione attuale"
                       >
-                        <Search className="h-4 w-4" />
+                        <Search className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
                       </Button>
                       <Input
                         value={startPoint}
                         onChange={(e) => setStartPoint(e.target.value)}
-                        placeholder="Partenza..."
-                        className="border-0 bg-background/50 pl-10 pr-10"
+                        placeholder={deviceType === 'phone' ? 'Da...' : 'Partenza...'}
+                        className={`border-0 bg-background/50 ${
+                          deviceType === 'phone' ? 'pl-8 pr-8 py-1 text-xs h-8' : 'pl-10 pr-10'
+                        }`}
                         disabled={isNavigating || isProcessing}
                       />
                       <Button
                         onClick={() => handleVoiceInput('start')}
                         size="icon"
                         variant="ghost"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        className={`absolute right-0.5 top-1/2 -translate-y-1/2 ${
+                          deviceType === 'phone' ? 'h-7 w-7' : 'h-8 w-8'
+                        }`}
                         disabled={isNavigating || isProcessing || (isRecording && recordingFor !== 'start')}
                         title="Usa la voce"
                       >
                         {isProcessing && recordingFor === 'start' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className={deviceType === 'phone' ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
                         ) : isRecording && recordingFor === 'start' ? (
-                          <MicOff className="h-4 w-4 text-red-500 animate-pulse" />
+                          <MicOff className={`text-red-500 animate-pulse ${deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'}`} />
                         ) : (
-                          <Mic className="h-4 w-4" />
+                          <Mic className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
                         )}
                       </Button>
                     </div>
@@ -951,52 +963,76 @@ const MapView = () => {
                         value={endPoint}
                         onChange={(e) => setEndPoint(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && calculateRoute()}
-                        placeholder="Destinazione..."
-                        className="border-0 bg-background/50 pr-10"
+                        placeholder={deviceType === 'phone' ? 'A...' : 'Destinazione...'}
+                        className={`border-0 bg-background/50 ${
+                          deviceType === 'phone' ? 'pr-8 pl-2 py-1 text-xs h-8' : 'pr-10'
+                        }`}
                         disabled={isNavigating || isProcessing}
                       />
                       <Button
                         onClick={() => handleVoiceInput('end')}
                         size="icon"
                         variant="ghost"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        className={`absolute right-0.5 top-1/2 -translate-y-1/2 ${
+                          deviceType === 'phone' ? 'h-7 w-7' : 'h-8 w-8'
+                        }`}
                         disabled={isNavigating || isProcessing || (isRecording && recordingFor !== 'end')}
                         title="Usa la voce"
                       >
                         {isProcessing && recordingFor === 'end' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className={deviceType === 'phone' ? 'h-3 w-3 animate-spin' : 'h-4 w-4 animate-spin'} />
                         ) : isRecording && recordingFor === 'end' ? (
-                          <MicOff className="h-4 w-4 text-red-500 animate-pulse" />
+                          <MicOff className={`text-red-500 animate-pulse ${deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'}`} />
                         ) : (
-                          <Mic className="h-4 w-4" />
+                          <Mic className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
                         )}
                       </Button>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Button onClick={calculateRoute} size="icon" disabled={isNavigating || isProcessing}>
-                      <Route className="h-5 w-5" />
+                  <div className={deviceType === 'phone' ? 'flex flex-col gap-1' : 'flex flex-col gap-2'}>
+                    <Button 
+                      onClick={calculateRoute} 
+                      size="icon" 
+                      disabled={isNavigating || isProcessing}
+                      className={deviceType === 'phone' ? 'h-8 w-8' : ''}
+                    >
+                      <Route className={deviceType === 'phone' ? 'h-3.5 w-3.5' : 'h-5 w-5'} />
                     </Button>
-                    <Button onClick={clearRoute} variant="outline" size="icon" disabled={isProcessing}>
-                      <X className="h-5 w-5" />
+                    <Button 
+                      onClick={clearRoute} 
+                      variant="outline" 
+                      size="icon" 
+                      disabled={isProcessing}
+                      className={deviceType === 'phone' ? 'h-8 w-8' : ''}
+                    >
+                      <X className={deviceType === 'phone' ? 'h-3.5 w-3.5' : 'h-5 w-5'} />
                     </Button>
                   </div>
                 </div>
 
                 {routeInstructions.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex gap-2 text-xs text-muted-foreground">
+                  <div className={deviceType === 'phone' ? 'space-y-1' : 'space-y-2'}>
+                    <div className={`flex gap-2 text-muted-foreground ${
+                      deviceType === 'phone' ? 'text-[10px]' : 'text-xs'
+                    }`}>
                       <span>📍 {(totalDistance / 1000).toFixed(1)} km</span>
                       <span>⏱️ {Math.floor(totalTime / 60)} min</span>
                     </div>
                     {!isNavigating ? (
-                      <Button onClick={startNavigation} className="w-full gap-2">
-                        <Navigation className="h-4 w-4" />
-                        Avvia Navigazione
+                      <Button 
+                        onClick={startNavigation} 
+                        className={`w-full ${deviceType === 'phone' ? 'gap-1 h-8 text-xs' : 'gap-2'}`}
+                      >
+                        <Navigation className={deviceType === 'phone' ? 'h-3 w-3' : 'h-4 w-4'} />
+                        {deviceType === 'phone' ? 'Avvia' : 'Avvia Navigazione'}
                       </Button>
                     ) : (
-                      <Button onClick={stopNavigation} variant="destructive" className="w-full">
-                        Termina Navigazione
+                      <Button 
+                        onClick={stopNavigation} 
+                        variant="destructive" 
+                        className={`w-full ${deviceType === 'phone' ? 'h-8 text-xs' : ''}`}
+                      >
+                        {deviceType === 'phone' ? 'Termina' : 'Termina Navigazione'}
                       </Button>
                     )}
                   </div>
@@ -1009,31 +1045,33 @@ const MapView = () => {
 
       {/* Control Panel - Hidden during navigation */}
       {!isNavigating && (
-        <div className={`absolute z-[1000] flex flex-col gap-3 ${
+        <div className={`absolute z-[1000] flex flex-col ${
           deviceType === 'desktop' 
-            ? 'bottom-8 left-8' 
+            ? 'gap-3 bottom-8 left-8' 
             : deviceType === 'tablet'
-            ? 'bottom-6 left-6'
-            : 'bottom-4 left-4'
+            ? 'gap-3 bottom-6 left-6'
+            : 'gap-1.5 bottom-2 left-2'
         }`}>
-        <div className="glass-panel rounded-xl p-2 shadow-glass">
+        <div className={`glass-panel shadow-glass ${
+          deviceType === 'phone' ? 'rounded-lg p-1' : 'rounded-xl p-2'
+        }`}>
           <Button
             variant={mapLayer === 'streets' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('streets')}
-            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-9 h-9'}
             title="Vista stradale"
           >
-            <MapIcon className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
+            <MapIcon className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-4 w-4'} />
           </Button>
           <Button
             variant={mapLayer === 'satellite' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => setMapLayer('satellite')}
-            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-9 h-9'}
             title="Vista satellitare"
           >
-            <Satellite className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
+            <Satellite className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-4 w-4'} />
           </Button>
         </div>
         
@@ -1043,15 +1081,17 @@ const MapView = () => {
           onLayerToggle={handleLayerToggle}
         />
         
-        <div className="glass-panel rounded-xl p-2 shadow-glass">
+        <div className={`glass-panel shadow-glass ${
+          deviceType === 'phone' ? 'rounded-lg p-1' : 'rounded-xl p-2'
+        }`}>
           <Button
             variant="ghost"
             size="icon"
             onClick={getUserLocation}
-            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-12 h-12'}
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-9 h-9'}
             title="La mia posizione"
           >
-            <Navigation className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-5 w-5'} />
+            <Navigation className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-4 w-4'} />
           </Button>
         </div>
         </div>
@@ -1066,7 +1106,7 @@ const MapView = () => {
               ? 'bottom-10 left-10'
               : deviceType === 'tablet'
               ? 'bottom-8 left-8'
-              : 'bottom-6 left-6'
+              : 'bottom-3 left-3'
           }`}>
             <Button
               onClick={stopNavigation}
@@ -1077,11 +1117,11 @@ const MapView = () => {
                   ? 'w-28 h-28'
                   : deviceType === 'tablet'
                   ? 'w-20 h-20'
-                  : 'w-16 h-16'
+                  : 'w-12 h-12'
               }`}
               title="Chiudi navigazione"
             >
-              <X className={deviceType === 'desktop' ? 'h-14 w-14' : deviceType === 'tablet' ? 'h-10 w-10' : 'h-8 w-8'} />
+              <X className={deviceType === 'desktop' ? 'h-14 w-14' : deviceType === 'tablet' ? 'h-10 w-10' : 'h-6 w-6'} />
             </Button>
           </div>
 
@@ -1091,21 +1131,21 @@ const MapView = () => {
               ? 'bottom-10'
               : deviceType === 'tablet'
               ? 'bottom-8'
-              : 'bottom-6'
+              : 'bottom-3'
           }`}>
-            <div className={`glass-panel rounded-3xl shadow-elegant ${
+            <div className={`glass-panel shadow-elegant ${
               deviceType === 'desktop'
-                ? 'px-12 py-8'
+                ? 'rounded-3xl px-12 py-8'
                 : deviceType === 'tablet'
-                ? 'px-8 py-6'
-                : 'px-6 py-4'
+                ? 'rounded-3xl px-8 py-6'
+                : 'rounded-2xl px-3 py-2'
             }`}>
               <div className={`flex items-center ${
                 deviceType === 'desktop'
                   ? 'gap-12'
                   : deviceType === 'tablet'
                   ? 'gap-8'
-                  : 'gap-6'
+                  : 'gap-3'
               }`}>
                 <div className="text-center">
                   <div className={`font-bold text-primary leading-none ${
@@ -1113,24 +1153,24 @@ const MapView = () => {
                       ? 'text-7xl'
                       : deviceType === 'tablet'
                       ? 'text-5xl'
-                      : 'text-4xl'
+                      : 'text-2xl'
                   }`}>
                     {Math.floor(totalTime / 60)}
                   </div>
-                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                  <div className={`text-muted-foreground font-semibold ${
                     deviceType === 'desktop'
-                      ? 'text-lg'
+                      ? 'text-lg mt-2'
                       : deviceType === 'tablet'
-                      ? 'text-base'
-                      : 'text-sm'
-                  }`}>minuti</div>
+                      ? 'text-base mt-2'
+                      : 'text-[10px] mt-0.5'
+                  }`}>min</div>
                 </div>
                 <div className={`w-px bg-border ${
                   deviceType === 'desktop'
                     ? 'h-24'
                     : deviceType === 'tablet'
                     ? 'h-20'
-                    : 'h-16'
+                    : 'h-12'
                 }`}></div>
                 <div className="text-center">
                   <div className={`font-bold text-primary leading-none ${
@@ -1138,16 +1178,16 @@ const MapView = () => {
                       ? 'text-7xl'
                       : deviceType === 'tablet'
                       ? 'text-5xl'
-                      : 'text-4xl'
+                      : 'text-2xl'
                   }`}>
                     {(totalDistance / 1000).toFixed(1)}
                   </div>
-                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                  <div className={`text-muted-foreground font-semibold ${
                     deviceType === 'desktop'
-                      ? 'text-lg'
+                      ? 'text-lg mt-2'
                       : deviceType === 'tablet'
-                      ? 'text-base'
-                      : 'text-sm'
+                      ? 'text-base mt-2'
+                      : 'text-[10px] mt-0.5'
                   }`}>km</div>
                 </div>
                 <div className={`w-px bg-border ${
@@ -1155,7 +1195,7 @@ const MapView = () => {
                     ? 'h-24'
                     : deviceType === 'tablet'
                     ? 'h-20'
-                    : 'h-16'
+                    : 'h-12'
                 }`}></div>
                 <div className="text-center">
                   <div className={`font-bold text-primary leading-none ${
@@ -1163,16 +1203,16 @@ const MapView = () => {
                       ? 'text-7xl'
                       : deviceType === 'tablet'
                       ? 'text-5xl'
-                      : 'text-4xl'
+                      : 'text-2xl'
                   }`}>
                     {Math.round(currentSpeed)}
                   </div>
-                  <div className={`text-muted-foreground font-semibold mt-2 ${
+                  <div className={`text-muted-foreground font-semibold ${
                     deviceType === 'desktop'
-                      ? 'text-lg'
+                      ? 'text-lg mt-2'
                       : deviceType === 'tablet'
-                      ? 'text-base'
-                      : 'text-sm'
+                      ? 'text-base mt-2'
+                      : 'text-[10px] mt-0.5'
                   }`}>km/h</div>
                 </div>
               </div>
@@ -1181,8 +1221,8 @@ const MapView = () => {
         </>
       )}
 
-      {/* Legend - Hidden during navigation */}
-      {!isNavigating && (
+      {/* Legend - Hidden during navigation and on phone */}
+      {!isNavigating && deviceType !== 'phone' && (
         <div className="absolute bottom-6 right-6 z-[1000]">
         <div className="glass-panel rounded-xl p-3 sm:p-4 shadow-glass max-w-[200px] sm:max-w-xs">
           <div className="flex items-center gap-2 mb-1 sm:mb-2">
