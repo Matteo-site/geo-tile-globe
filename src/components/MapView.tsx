@@ -156,13 +156,13 @@ const MapView = () => {
     };
   }, []);
 
-  // GPS tracking in tempo reale sempre attivo con throttling per performance
+  // GPS tracking in tempo reale sempre attivo - aggiornamento fluido durante navigazione
   useEffect(() => {
     if (!map.current) return;
 
     let lastPosition: [number, number] | null = null;
     let lastUpdateTime = 0;
-    const UPDATE_THROTTLE = 500; // Aggiorna marker max ogni 500ms
+    const UPDATE_THROTTLE = isNavigating ? 100 : 500; // Più frequente durante navigazione
     const MAX_GPS_JUMP = 0.001; // ~111 metri - distanza massima accettabile tra aggiornamenti GPS
 
     const watchId = navigator.geolocation.watchPosition(
@@ -202,14 +202,13 @@ const MapView = () => {
         // Aggiorna sempre stato per velocità e heading
         setCurrentHeading(calculatedHeading);
         setCurrentPosition(newPos);
-        lastPosition = newPos;
         
         // Calcola velocità in km/h
         const speedMps = position.coords.speed || 0;
         const speedKmh = speedMps * 3.6;
         setCurrentSpeed(speedKmh);
 
-        // Durante navigazione, centra SEMPRE la mappa in tempo reale
+        // Durante navigazione: centra mappa + ruota verso direzione movimento
         if (isNavigating) {
           const zoomLevel = transportMode === 'walking' ? 17 : 18;
           map.current?.setView(newPos, zoomLevel, {
@@ -217,15 +216,26 @@ const MapView = () => {
           });
         }
 
-        // Throttle aggiornamenti marker per performance (ma non il centering!)
+        // Throttle aggiornamenti marker (più frequenti durante navigazione)
         if (currentTime - lastUpdateTime < UPDATE_THROTTLE) {
+          // Durante navigazione, aggiorna comunque la rotazione per fluidità
+          if (isNavigating && locationMarkerRef.current) {
+            const markerElement = locationMarkerRef.current.getElement();
+            if (markerElement) {
+              const arrowContainer = markerElement.querySelector('.gps-arrow-container') as HTMLElement;
+              if (arrowContainer) {
+                arrowContainer.style.transform = `rotate(${calculatedHeading}deg)`;
+              }
+            }
+          }
           return;
         }
         lastUpdateTime = currentTime;
+        lastPosition = newPos;
 
         // Aggiorna o crea marker GPS
         if (!locationMarkerRef.current) {
-          // Crea marker con icona iniziale
+          // Crea marker con icona freccia
           const arrowIcon = L.divIcon({
             className: 'custom-gps-marker',
             html: `
@@ -236,7 +246,7 @@ const MapView = () => {
                 align-items: center; 
                 justify-content: center;
                 transform: rotate(${calculatedHeading}deg);
-                transition: transform 0.3s ease-out;
+                transition: transform 0.15s ease-out;
               ">
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M20 5 L30 35 L20 30 L10 35 Z" fill="#00d4ff" stroke="white" stroke-width="2"/>
@@ -252,10 +262,9 @@ const MapView = () => {
             .addTo(map.current!)
             .bindPopup('<strong>La tua posizione</strong>');
         } else {
-          // Aggiorna solo posizione e rotazione senza ricreare l'icona
+          // Aggiorna posizione e rotazione del marker
           locationMarkerRef.current.setLatLng(newPos);
           
-          // Aggiorna rotazione tramite CSS per performance
           const markerElement = locationMarkerRef.current.getElement();
           if (markerElement) {
             const arrowContainer = markerElement.querySelector('.gps-arrow-container') as HTMLElement;
@@ -270,7 +279,7 @@ const MapView = () => {
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 500, // Ridotto per dati più freschi
+        maximumAge: 0, // Dati sempre freschi
         timeout: 10000
       }
     );
@@ -303,7 +312,7 @@ const MapView = () => {
     }
   }, [isNavigating]);
 
-  // Effetto per ruotare la mappa durante la navigazione (con throttling)
+  // Ruota la mappa durante navigazione per tenere la freccia sempre "avanti"
   useEffect(() => {
     if (!mapContainer.current) return;
     
@@ -311,9 +320,10 @@ const MapView = () => {
     if (!mapElement) return;
 
     if (isNavigating && map.current) {
-      // Applica rotazione con transizione CSS per smoothness
-      mapElement.style.transition = 'transform 0.3s ease-out';
+      // Rotazione fluida della mappa basata sulla direzione di movimento
+      mapElement.style.transition = 'transform 0.2s linear';
       mapElement.style.transform = `rotate(${-currentHeading}deg)`;
+      mapElement.style.transformOrigin = 'center center';
     } else {
       // Rimuovi rotazione quando non in navigazione
       mapElement.style.transition = 'transform 0.5s ease-out';
@@ -642,16 +652,14 @@ const MapView = () => {
       transitMarkersRef.current.forEach(marker => marker.remove());
       transitMarkersRef.current = [];
 
-      // Determina profilo di routing e colore in base al mezzo
+      // Determina profilo di routing - percorso sempre BLU
       let profile = 'car';
-      let routeColor = 'hsl(var(--primary))';
+      const routeColor = '#00d4ff'; // BLU per il percorso da fare
       
       if (transportMode === 'walking') {
         profile = 'foot';
-        routeColor = '#f59e0b';
       } else if (transportMode === 'transit') {
         profile = 'foot'; // OSRM non supporta transit, usiamo foot come approssimazione
-        routeColor = '#22c55e';
       }
 
       // Crea routing control
