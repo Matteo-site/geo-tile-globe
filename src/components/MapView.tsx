@@ -93,51 +93,145 @@ const MapView = () => {
   const speedCamerasRef = useRef<L.Marker[]>([]);
   const [showSpeedCameras, setShowSpeedCameras] = useState(true);
   const [nearestCamera, setNearestCamera] = useState<{ camera: SpeedCamera; distance: number } | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(6);
+  const MIN_ZOOM_FOR_CAMERAS = 13; // Mostra autovelox solo con zoom >= 13
   
-  // Database autovelox in Italia (esempio con posizioni reali)
+  // Database esteso autovelox in Italia
   const speedCameras: SpeedCamera[] = [
-    // Autostrada A1 Milano-Napoli
-    { id: 'sc1', lat: 45.5231, lon: 9.2085, speedLimit: 130, type: 'fixed', direction: 'Sud' },
-    { id: 'sc2', lat: 44.4949, lon: 11.3426, speedLimit: 130, type: 'fixed', direction: 'Nord' },
-    { id: 'sc3', lat: 43.7696, lon: 11.2558, speedLimit: 130, type: 'section' },
-    { id: 'sc4', lat: 41.9028, lon: 12.4964, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    // AUTOSTRADA A1 Milano-Napoli (la più lunga d'Italia)
+    { id: 'a1_1', lat: 45.5231, lon: 9.2085, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a1_2', lat: 45.4200, lon: 9.1500, speedLimit: 130, type: 'section', direction: 'Nord' },
+    { id: 'a1_3', lat: 45.2800, lon: 9.0800, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a1_4', lat: 45.0500, lon: 8.9200, speedLimit: 130, type: 'mobile' },
+    { id: 'a1_5', lat: 44.8900, lon: 8.8500, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a1_6', lat: 44.6500, lon: 10.9200, speedLimit: 130, type: 'section' },
+    { id: 'a1_7', lat: 44.4949, lon: 11.3426, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a1_8', lat: 44.1200, lon: 11.8800, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a1_9', lat: 43.7696, lon: 11.2558, speedLimit: 130, type: 'section' },
+    { id: 'a1_10', lat: 43.5500, lon: 11.0800, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a1_11', lat: 43.3200, lon: 10.9500, speedLimit: 130, type: 'mobile' },
+    { id: 'a1_12', lat: 42.9900, lon: 11.8800, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a1_13', lat: 42.5600, lon: 12.6500, speedLimit: 130, type: 'section' },
+    { id: 'a1_14', lat: 42.0800, lon: 12.9200, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a1_15', lat: 41.9028, lon: 12.4964, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a1_16', lat: 41.2900, lon: 13.6500, speedLimit: 130, type: 'section' },
+    { id: 'a1_17', lat: 40.8500, lon: 14.2800, speedLimit: 130, type: 'fixed', direction: 'Sud' },
     
-    // Autostrada A4 Torino-Venezia
-    { id: 'sc5', lat: 45.4654, lon: 9.1859, speedLimit: 130, type: 'fixed', direction: 'Est' },
-    { id: 'sc6', lat: 45.4408, lon: 10.9916, speedLimit: 130, type: 'section' },
-    { id: 'sc7', lat: 45.5079, lon: 12.2399, speedLimit: 130, type: 'fixed', direction: 'Ovest' },
+    // AUTOSTRADA A4 Torino-Venezia
+    { id: 'a4_1', lat: 45.0703, lon: 7.6869, speedLimit: 130, type: 'fixed', direction: 'Est' },
+    { id: 'a4_2', lat: 45.2100, lon: 7.9500, speedLimit: 130, type: 'mobile' },
+    { id: 'a4_3', lat: 45.4654, lon: 9.1859, speedLimit: 130, type: 'section' },
+    { id: 'a4_4', lat: 45.5500, lon: 9.5800, speedLimit: 130, type: 'fixed', direction: 'Ovest' },
+    { id: 'a4_5', lat: 45.5800, lon: 9.9200, speedLimit: 130, type: 'fixed', direction: 'Est' },
+    { id: 'a4_6', lat: 45.4408, lon: 10.9916, speedLimit: 130, type: 'section' },
+    { id: 'a4_7', lat: 45.4100, lon: 11.4500, speedLimit: 130, type: 'fixed', direction: 'Ovest' },
+    { id: 'a4_8', lat: 45.4300, lon: 11.8800, speedLimit: 130, type: 'mobile' },
+    { id: 'a4_9', lat: 45.5079, lon: 12.2399, speedLimit: 130, type: 'fixed', direction: 'Est' },
     
-    // Roma
-    { id: 'sc8', lat: 41.9109, lon: 12.4818, speedLimit: 50, type: 'fixed' },
-    { id: 'sc9', lat: 41.8919, lon: 12.5113, speedLimit: 70, type: 'mobile' },
+    // AUTOSTRADA A14 Bologna-Taranto
+    { id: 'a14_1', lat: 44.4949, lon: 11.3426, speedLimit: 130, type: 'section' },
+    { id: 'a14_2', lat: 44.2800, lon: 12.1500, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a14_3', lat: 44.0600, lon: 12.5600, speedLimit: 130, type: 'mobile' },
+    { id: 'a14_4', lat: 43.9400, lon: 12.8900, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a14_5', lat: 43.6100, lon: 13.5100, speedLimit: 130, type: 'section' },
+    { id: 'a14_6', lat: 43.3100, lon: 13.7200, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'a14_7', lat: 42.3500, lon: 14.2100, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'a14_8', lat: 41.4600, lon: 15.5500, speedLimit: 130, type: 'section' },
+    { id: 'a14_9', lat: 40.6200, lon: 17.1200, speedLimit: 130, type: 'fixed', direction: 'Sud' },
     
-    // Milano
-    { id: 'sc10', lat: 45.4642, lon: 9.1900, speedLimit: 50, type: 'fixed' },
-    { id: 'sc11', lat: 45.4773, lon: 9.1815, speedLimit: 70, type: 'mobile' },
+    // MILANO - Centro e tangenziali
+    { id: 'mi_1', lat: 45.4642, lon: 9.1900, speedLimit: 50, type: 'fixed' },
+    { id: 'mi_2', lat: 45.4773, lon: 9.1815, speedLimit: 50, type: 'mobile' },
+    { id: 'mi_3', lat: 45.4850, lon: 9.2050, speedLimit: 70, type: 'fixed' },
+    { id: 'mi_4', lat: 45.4950, lon: 9.1750, speedLimit: 50, type: 'fixed' },
+    { id: 'mi_5', lat: 45.4500, lon: 9.1600, speedLimit: 50, type: 'mobile' },
+    { id: 'mi_6', lat: 45.5100, lon: 9.2200, speedLimit: 90, type: 'section' },
+    { id: 'mi_7', lat: 45.4400, lon: 9.2400, speedLimit: 70, type: 'fixed' },
+    { id: 'mi_8', lat: 45.5300, lon: 9.1500, speedLimit: 90, type: 'fixed' },
     
-    // Napoli
-    { id: 'sc12', lat: 40.8518, lon: 14.2681, speedLimit: 50, type: 'fixed' },
-    { id: 'sc13', lat: 40.8359, lon: 14.2488, speedLimit: 70, type: 'section' },
+    // ROMA - Centro e raccordo
+    { id: 'rm_1', lat: 41.9028, lon: 12.4964, speedLimit: 50, type: 'fixed' },
+    { id: 'rm_2', lat: 41.9109, lon: 12.4818, speedLimit: 50, type: 'mobile' },
+    { id: 'rm_3', lat: 41.8919, lon: 12.5113, speedLimit: 70, type: 'fixed' },
+    { id: 'rm_4', lat: 41.9200, lon: 12.5200, speedLimit: 50, type: 'fixed' },
+    { id: 'rm_5', lat: 41.8800, lon: 12.4700, speedLimit: 90, type: 'section' },
+    { id: 'rm_6', lat: 41.9500, lon: 12.5500, speedLimit: 90, type: 'fixed' },
+    { id: 'rm_7', lat: 41.8600, lon: 12.5800, speedLimit: 70, type: 'mobile' },
+    { id: 'rm_8', lat: 41.9400, lon: 12.4500, speedLimit: 50, type: 'fixed' },
     
-    // Torino
-    { id: 'sc14', lat: 45.0703, lon: 7.6869, speedLimit: 50, type: 'fixed' },
+    // NAPOLI - Centro e tangenziale
+    { id: 'na_1', lat: 40.8518, lon: 14.2681, speedLimit: 50, type: 'fixed' },
+    { id: 'na_2', lat: 40.8359, lon: 14.2488, speedLimit: 70, type: 'section' },
+    { id: 'na_3', lat: 40.8600, lon: 14.2800, speedLimit: 50, type: 'mobile' },
+    { id: 'na_4', lat: 40.8400, lon: 14.2300, speedLimit: 90, type: 'fixed' },
+    { id: 'na_5', lat: 40.8200, lon: 14.1900, speedLimit: 70, type: 'fixed' },
+    { id: 'na_6', lat: 40.8800, lon: 14.3200, speedLimit: 50, type: 'mobile' },
     
-    // Bologna
-    { id: 'sc15', lat: 44.4949, lon: 11.3426, speedLimit: 50, type: 'mobile' },
+    // TORINO - Centro e tangenziale
+    { id: 'to_1', lat: 45.0703, lon: 7.6869, speedLimit: 50, type: 'fixed' },
+    { id: 'to_2', lat: 45.0800, lon: 7.7000, speedLimit: 50, type: 'mobile' },
+    { id: 'to_3', lat: 45.0600, lon: 7.6700, speedLimit: 70, type: 'fixed' },
+    { id: 'to_4', lat: 45.1200, lon: 7.6900, speedLimit: 90, type: 'section' },
+    { id: 'to_5', lat: 45.0500, lon: 7.7200, speedLimit: 50, type: 'fixed' },
     
-    // Firenze
-    { id: 'sc16', lat: 43.7696, lon: 11.2558, speedLimit: 70, type: 'fixed' },
+    // BOLOGNA - Centro e tangenziale
+    { id: 'bo_1', lat: 44.4949, lon: 11.3426, speedLimit: 50, type: 'mobile' },
+    { id: 'bo_2', lat: 44.5100, lon: 11.3600, speedLimit: 50, type: 'fixed' },
+    { id: 'bo_3', lat: 44.4800, lon: 11.3200, speedLimit: 70, type: 'fixed' },
+    { id: 'bo_4', lat: 44.5300, lon: 11.3900, speedLimit: 90, type: 'section' },
+    
+    // FIRENZE - Centro e raccordo
+    { id: 'fi_1', lat: 43.7696, lon: 11.2558, speedLimit: 50, type: 'fixed' },
+    { id: 'fi_2', lat: 43.7800, lon: 11.2700, speedLimit: 50, type: 'mobile' },
+    { id: 'fi_3', lat: 43.7500, lon: 11.2300, speedLimit: 70, type: 'fixed' },
+    { id: 'fi_4', lat: 43.8100, lon: 11.2900, speedLimit: 90, type: 'section' },
+    
+    // PALERMO
+    { id: 'pa_1', lat: 38.1157, lon: 13.3615, speedLimit: 50, type: 'fixed' },
+    { id: 'pa_2', lat: 38.1300, lon: 13.3500, speedLimit: 50, type: 'mobile' },
+    { id: 'pa_3', lat: 38.1000, lon: 13.3800, speedLimit: 70, type: 'fixed' },
+    
+    // GENOVA
+    { id: 'ge_1', lat: 44.4056, lon: 8.9463, speedLimit: 50, type: 'fixed' },
+    { id: 'ge_2', lat: 44.4200, lon: 8.9600, speedLimit: 50, type: 'mobile' },
+    { id: 'ge_3', lat: 44.3900, lon: 8.9300, speedLimit: 70, type: 'fixed' },
+    
+    // VENEZIA
+    { id: 've_1', lat: 45.4408, lon: 12.3155, speedLimit: 50, type: 'fixed' },
+    { id: 've_2', lat: 45.4500, lon: 12.3300, speedLimit: 50, type: 'mobile' },
+    
+    // BARI
+    { id: 'ba_1', lat: 41.1171, lon: 16.8719, speedLimit: 50, type: 'fixed' },
+    { id: 'ba_2', lat: 41.1300, lon: 16.8900, speedLimit: 50, type: 'mobile' },
+    { id: 'ba_3', lat: 41.1000, lon: 16.8500, speedLimit: 70, type: 'fixed' },
+    
+    // VERONA
+    { id: 'vr_1', lat: 45.4384, lon: 10.9916, speedLimit: 50, type: 'fixed' },
+    { id: 'vr_2', lat: 45.4500, lon: 11.0100, speedLimit: 50, type: 'mobile' },
+    
+    // CATANIA
+    { id: 'ct_1', lat: 37.5079, lon: 15.0830, speedLimit: 50, type: 'fixed' },
+    { id: 'ct_2', lat: 37.5200, lon: 15.1000, speedLimit: 50, type: 'mobile' },
   ];
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     // Inizializza la mappa con opzioni di performance
-    map.current = L.map(mapContainer.current, {
+    const mapInstance = L.map(mapContainer.current, {
       center: [45, 12],
       zoom: 6,
       zoomControl: false,
       preferCanvas: true, // Usa Canvas per rendering più veloce
+    });
+    
+    map.current = mapInstance;
+    setCurrentZoom(6);
+    
+    // Listener per cambio zoom
+    mapInstance.on('zoomend', () => {
+      const zoom = mapInstance.getZoom();
+      setCurrentZoom(zoom);
     });
 
     // Layer stradale (OpenStreetMap) con opzioni di performance
@@ -365,7 +459,7 @@ const MapView = () => {
     setNearestCamera(nearest);
   }, [currentPosition, isNavigating, showSpeedCameras]);
 
-  // Visualizza autovelox sulla mappa
+  // Visualizza autovelox sulla mappa (solo con zoom ravvicinato)
   useEffect(() => {
     if (!map.current) return;
 
@@ -373,7 +467,10 @@ const MapView = () => {
     speedCamerasRef.current.forEach(marker => marker.remove());
     speedCamerasRef.current = [];
 
-    if (!showSpeedCameras) return;
+    // Non mostrare autovelox se:
+    // 1. L'utente li ha disabilitati
+    // 2. Lo zoom è troppo lontano (evita confusione visiva)
+    if (!showSpeedCameras || currentZoom < MIN_ZOOM_FOR_CAMERAS) return;
 
     // Aggiungi marker per ogni autovelox
     speedCameras.forEach(camera => {
@@ -412,7 +509,7 @@ const MapView = () => {
 
       speedCamerasRef.current.push(marker);
     });
-  }, [map.current, showSpeedCameras]);
+  }, [map.current, showSpeedCameras, currentZoom]);
 
   // Disabilita interazione con la mappa durante navigazione per evitare spostamenti accidentali
   useEffect(() => {
