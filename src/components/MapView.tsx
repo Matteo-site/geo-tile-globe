@@ -5,7 +5,7 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import 'leaflet-routing-machine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding, Settings, Mic, MicOff, Loader2 } from 'lucide-react';
+import { Search, Map as MapIcon, Satellite, Navigation, Layers, Route, X, Car, Bus, ArrowRight, PersonStanding, Settings, Mic, MicOff, Loader2, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useDevice } from '@/contexts/DeviceContext';
@@ -30,6 +30,15 @@ interface RouteInstruction {
   distance: number;
   time: number;
   index: number;
+}
+
+interface SpeedCamera {
+  id: string;
+  lat: number;
+  lon: number;
+  speedLimit: number;
+  type: 'fixed' | 'mobile' | 'section';
+  direction?: string;
 }
 
 const MapView = () => {
@@ -81,6 +90,44 @@ const MapView = () => {
     weather: false,
     traffic: false
   });
+  const speedCamerasRef = useRef<L.Marker[]>([]);
+  const [showSpeedCameras, setShowSpeedCameras] = useState(true);
+  const [nearestCamera, setNearestCamera] = useState<{ camera: SpeedCamera; distance: number } | null>(null);
+  
+  // Database autovelox in Italia (esempio con posizioni reali)
+  const speedCameras: SpeedCamera[] = [
+    // Autostrada A1 Milano-Napoli
+    { id: 'sc1', lat: 45.5231, lon: 9.2085, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    { id: 'sc2', lat: 44.4949, lon: 11.3426, speedLimit: 130, type: 'fixed', direction: 'Nord' },
+    { id: 'sc3', lat: 43.7696, lon: 11.2558, speedLimit: 130, type: 'section' },
+    { id: 'sc4', lat: 41.9028, lon: 12.4964, speedLimit: 130, type: 'fixed', direction: 'Sud' },
+    
+    // Autostrada A4 Torino-Venezia
+    { id: 'sc5', lat: 45.4654, lon: 9.1859, speedLimit: 130, type: 'fixed', direction: 'Est' },
+    { id: 'sc6', lat: 45.4408, lon: 10.9916, speedLimit: 130, type: 'section' },
+    { id: 'sc7', lat: 45.5079, lon: 12.2399, speedLimit: 130, type: 'fixed', direction: 'Ovest' },
+    
+    // Roma
+    { id: 'sc8', lat: 41.9109, lon: 12.4818, speedLimit: 50, type: 'fixed' },
+    { id: 'sc9', lat: 41.8919, lon: 12.5113, speedLimit: 70, type: 'mobile' },
+    
+    // Milano
+    { id: 'sc10', lat: 45.4642, lon: 9.1900, speedLimit: 50, type: 'fixed' },
+    { id: 'sc11', lat: 45.4773, lon: 9.1815, speedLimit: 70, type: 'mobile' },
+    
+    // Napoli
+    { id: 'sc12', lat: 40.8518, lon: 14.2681, speedLimit: 50, type: 'fixed' },
+    { id: 'sc13', lat: 40.8359, lon: 14.2488, speedLimit: 70, type: 'section' },
+    
+    // Torino
+    { id: 'sc14', lat: 45.0703, lon: 7.6869, speedLimit: 50, type: 'fixed' },
+    
+    // Bologna
+    { id: 'sc15', lat: 44.4949, lon: 11.3426, speedLimit: 50, type: 'mobile' },
+    
+    // Firenze
+    { id: 'sc16', lat: 43.7696, lon: 11.2558, speedLimit: 70, type: 'fixed' },
+  ];
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -288,6 +335,84 @@ const MapView = () => {
       navigator.geolocation.clearWatch(watchId);
     };
   }, [isNavigating, transportMode]);
+
+  // Controllo distanza autovelox durante navigazione
+  useEffect(() => {
+    if (!isNavigating || !currentPosition || !showSpeedCameras) {
+      setNearestCamera(null);
+      return;
+    }
+
+    // Trova l'autovelox più vicino entro 1km
+    const ALERT_DISTANCE = 500; // metri
+    let nearest: { camera: SpeedCamera; distance: number } | null = null;
+    let minDistance = ALERT_DISTANCE;
+
+    speedCameras.forEach(camera => {
+      const distance = calculateDistance(
+        currentPosition[0],
+        currentPosition[1],
+        camera.lat,
+        camera.lon
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = { camera, distance };
+      }
+    });
+
+    setNearestCamera(nearest);
+  }, [currentPosition, isNavigating, showSpeedCameras]);
+
+  // Visualizza autovelox sulla mappa
+  useEffect(() => {
+    if (!map.current) return;
+
+    // Rimuovi marker precedenti
+    speedCamerasRef.current.forEach(marker => marker.remove());
+    speedCamerasRef.current = [];
+
+    if (!showSpeedCameras) return;
+
+    // Aggiungi marker per ogni autovelox
+    speedCameras.forEach(camera => {
+      const cameraIcon = L.divIcon({
+        className: 'speed-camera-marker',
+        html: `
+          <div style="
+            width: 32px;
+            height: 32px;
+            background: ${camera.type === 'section' ? '#f59e0b' : '#ef4444'};
+            border: 3px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+              <path d="M9.4 10.5l4.77-8.26C13.47 2.09 12.75 2 12 2c-2.4 0-4.6.85-6.32 2.25l3.66 6.35.06-.1zM21.54 9c-.92-2.92-3.15-5.26-6-6.34L11.88 9h9.66zm.26 1h-7.49l.29.5 4.76 8.25C21 16.97 22 14.61 22 12c0-.69-.07-1.35-.2-2zM8.54 12l-3.9-6.75C3.01 7.03 2 9.39 2 12c0 .69.07 1.35.2 2h7.49l-1.15-2zm-6.08 3c.92 2.92 3.15 5.26 6 6.34L12.12 15H2.46zm11.27 0l-3.9 6.76c.7.15 1.42.24 2.17.24 2.4 0 4.6-.85 6.32-2.25l-3.66-6.35-.93 1.6z"/>
+            </svg>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+      const marker = L.marker([camera.lat, camera.lon], { icon: cameraIcon })
+        .addTo(map.current!)
+        .bindPopup(`
+          <div style="text-align: center; font-size: 12px;">
+            <strong>Autovelox ${camera.type === 'section' ? 'Tutor' : camera.type === 'mobile' ? 'Mobile' : 'Fisso'}</strong><br/>
+            Limite: ${camera.speedLimit} km/h
+            ${camera.direction ? `<br/>Direzione: ${camera.direction}` : ''}
+          </div>
+        `);
+
+      speedCamerasRef.current.push(marker);
+    });
+  }, [map.current, showSpeedCameras]);
 
   // Disabilita interazione con la mappa durante navigazione per evitare spostamenti accidentali
   useEffect(() => {
@@ -569,6 +694,22 @@ const MapView = () => {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // Funzione helper per calcolare distanza tra due punti (in metri)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Raggio della Terra in metri
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distanza in metri
   };
 
   const getUserLocation = () => {
@@ -1085,6 +1226,23 @@ const MapView = () => {
           deviceType === 'phone' ? 'rounded-lg p-1' : 'rounded-xl p-2'
         }`}>
           <Button
+            variant={showSpeedCameras ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => {
+              setShowSpeedCameras(!showSpeedCameras);
+              toast.success(`Autovelox ${!showSpeedCameras ? 'attivati' : 'disattivati'}`);
+            }}
+            className={deviceType === 'desktop' ? 'w-16 h-16' : deviceType === 'tablet' ? 'w-14 h-14' : 'w-9 h-9'}
+            title="Autovelox"
+          >
+            <Camera className={deviceType === 'desktop' ? 'h-7 w-7' : deviceType === 'tablet' ? 'h-6 w-6' : 'h-4 w-4'} />
+          </Button>
+        </div>
+        
+        <div className={`glass-panel shadow-glass ${
+          deviceType === 'phone' ? 'rounded-lg p-1' : 'rounded-xl p-2'
+        }`}>
+          <Button
             variant="ghost"
             size="icon"
             onClick={getUserLocation}
@@ -1124,6 +1282,50 @@ const MapView = () => {
               <X className={deviceType === 'desktop' ? 'h-14 w-14' : deviceType === 'tablet' ? 'h-10 w-10' : 'h-6 w-6'} />
             </Button>
           </div>
+
+          {/* Speed Camera Alert - Top Center */}
+          {nearestCamera && nearestCamera.distance < 500 && (
+            <div className={`absolute left-1/2 -translate-x-1/2 z-[1001] ${
+              deviceType === 'desktop'
+                ? 'top-10'
+                : deviceType === 'tablet'
+                ? 'top-8'
+                : 'top-14'
+            }`}>
+              <div className={`glass-panel shadow-elegant ${
+                deviceType === 'desktop'
+                  ? 'rounded-2xl px-8 py-6'
+                  : deviceType === 'tablet'
+                  ? 'rounded-2xl px-6 py-4'
+                  : 'rounded-xl px-4 py-3'
+              } animate-pulse bg-red-500/90 backdrop-blur-md border-2 border-white`}>
+                <div className="flex items-center gap-3 text-white">
+                  <Camera className={deviceType === 'desktop' ? 'h-8 w-8' : deviceType === 'tablet' ? 'h-7 w-7' : 'h-6 w-6'} />
+                  <div>
+                    <div className={`font-bold ${
+                      deviceType === 'desktop'
+                        ? 'text-2xl'
+                        : deviceType === 'tablet'
+                        ? 'text-xl'
+                        : 'text-base'
+                    }`}>
+                      AUTOVELOX
+                    </div>
+                    <div className={`${
+                      deviceType === 'desktop'
+                        ? 'text-base'
+                        : deviceType === 'tablet'
+                        ? 'text-sm'
+                        : 'text-xs'
+                    }`}>
+                      {Math.round(nearestCamera.distance)}m • Limite {nearestCamera.camera.speedLimit} km/h
+                      {nearestCamera.camera.type === 'section' && ' • TUTOR'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Navigation Info - Bottom Center - Optimized for device types */}
           <div className={`absolute left-1/2 -translate-x-1/2 z-[1000] ${
